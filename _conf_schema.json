@@ -33,12 +33,13 @@
       "APIConfig_EndPoint": {
         "type": "string",
         "description": "API端点",
-        "hint": "端点末尾不得带有斜杠，需要HTTP(S)协议头。"
+        "hint": "端点末尾不得带有斜杠，需要HTTP(S)协议头。",
+        "default": "https://nb.server.qingfengawa.top"
       },
       "APIConfig_Key": {
         "type": "string",
         "description": "API密钥",
-        "hint": "此处应填写Nmpostor基础配置中ManageToken项的值。"
+        "hint": "此处的API密钥需要您在Nmpostor的数据库中的数据表verifykey创建。"
       }
     }
   },
