@@ -1,0 +1,102 @@
+{
+  "MySQLConfig": {
+    "type": "object",
+    "description": "MySQL设置",
+    "hint": "必填，否则插件将无法工作。",
+    "obvious_hint": true,
+    "items": {
+      "MySQLConfig_Address": {
+        "type": "string",
+        "description": "MySQL地址",
+        "hint": "要连接到的MySQL地址。例如127.0.0.1。不要在此处填写端口。",
+        "default": "MySQL"
+      },
+      "MySQLConfig_Port": {
+        "type": "int",
+        "description": "MySQL端口号",
+        "default": 3306
+      },
+      "MySQLConfig_Database": {
+        "type": "string",
+        "description": "数据库名称",
+        "hint": "要写入的MySQL数据库。注意数据库需要已存在于MySQL，插件不会自动创建数据库。",
+        "default": "LinkAmongUs"
+      }
+    }
+  },
+  "APIConfig": {
+    "type": "object",
+    "description": "API设置",
+    "hint": "必填，否则插件将无法工作。",
+    "obvious_hint": true,
+    "items": {
+      "APIConfig_EndPoint": {
+        "type": "string",
+        "description": "API端点",
+        "hint": "端点末尾不得带有斜杠，需要HTTP(S)协议头。"
+      },
+      "APIConfig_Key": {
+        "type": "string",
+        "description": "API密钥",
+        "hint": "此处应填写Nmpostor基础配置中ManageToken项的值。"
+      }
+    }
+  },
+  "VerifyConfig": {
+    "type": "object",
+    "description": "验证设置",
+    "items": {
+      "VerifyConfig_WhiteGroup": {
+        "type": "list",
+        "description": "白名单群组",
+        "hint": "只在配置的白名单群组中响应验证请求，留空则在所有群组启用。",
+        "default": []
+      }
+    },
+    "VerifyConfig_CreateVerfiyConfig": {
+      "type": "object",
+      "description": "验证创建设置",
+      "hint": "/verify create命令的相关配置。",
+      "items": {
+        "CreateVerfiyConfig_OnlyAdmin": {
+          "type": "bool",
+          "description": "仅管理员可用",
+          "hint": "仅允许管理员发起验证请求。",
+          "default": false
+        },
+        "CreateVerfiyConfig_TimeOut": {
+          "type": "int",
+          "description": "验证超时时间",
+          "hint": "向API发送请求多少秒后主动标记为验证超时并发送销毁验证请求。由于Nmpostor限制，该值最大为600秒即10分钟，填写1-600以外值将回退为600秒。",
+          "default": 600
+        }
+      }
+    },
+    "VerifyConfig_VerifyCheckConfig": {
+      "type": "object",
+      "description": "验证检查设置",
+      "hint": "/verify check命令的相关配置。",
+      "items": {
+        "VerifyCheckConfig_AutoCheck": {
+          "type": "bool",
+          "description": "在超时前自动检查是否认证",
+          "hint": "在超时前1分钟自动主动触发一次验证，此功能可防止某些用户忘记提交验证的问题。",
+          "default": true
+        }
+      }
+    },
+    "VerifyConfig_StatusInquiryConfig": {
+      "type": "object",
+      "description": "状态查询设置",
+      "hint": "/verify status命令的相关配置。",
+      "items": {
+        "StatusInquiryConfig_OnlyAdmin": {
+          "type": "bool",
+          "description": "仅管理员可用",
+          "hint": "仅允许管理员查询验证状态。",
+          "default": true
+        }
+      }
+    }
+  }
+}
