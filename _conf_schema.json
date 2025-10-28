@@ -16,6 +16,15 @@
         "description": "MySQL端口号",
         "default": 3306
       },
+      "MySQLConfig_UserName": {
+        "type": "string",
+        "description": "MySQL用户名",
+        "default": "LinkAmongUs"
+      },
+      "MySQLConfig_UserPassword": {
+        "type": "string",
+        "description": "MySQL密码"
+      },
       "MySQLConfig_Database": {
         "type": "string",
         "description": "数据库名称",

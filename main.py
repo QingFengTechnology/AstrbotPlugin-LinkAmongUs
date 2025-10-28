@@ -27,8 +27,8 @@ class LinkAmongUsPlugin(Star):
             self.db_pool = await aiomysql.create_pool(
                 host=mysql_config.get("MySQLConfig_Address", "127.0.0.1"),
                 port=mysql_config.get("MySQLConfig_Port", 3306),
-                user=mysql_config.get("MySQLConfig_User", "root"),
-                password=mysql_config.get("MySQLConfig_Password", ""),
+                user=mysql_config.get("MySQLConfig_UserName", "LinkAmongUs"),
+                password=mysql_config.get("MySQLConfig_UserPassword", ""),
                 db=mysql_config.get("MySQLConfig_Database", "LinkAmongUs"),
                 charset='utf8mb4',
                 autocommit=True
