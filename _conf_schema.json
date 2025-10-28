@@ -110,5 +110,17 @@
         }
       }
     }
+  },
+  "HelpConfig": {
+    "type": "object",
+    "description": "插件帮助设置",
+    "hint": "/verify help命令的相关配置。",
+    "items": {
+      "HelpConfig_Text": {
+        "type": "text",
+        "description": "帮助文本设置",
+        "hint": "设置用户使用/verify help命令后返回的内容。留空视为不启用该命令。"
+      }
+    }
   }
 }

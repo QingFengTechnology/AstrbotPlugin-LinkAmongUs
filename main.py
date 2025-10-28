@@ -8,24 +8,29 @@ from datetime import datetime
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+from astrbot.api import AstrBotConfig
 
 class LinkAmongUsPlugin(Star):
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
         self.db_pool = None
         self.session = None
-        self.config = {}
+        self.config = config if config is not None else {}
         
     async def initialize(self):
         """初始化插件，建立数据库连接池和HTTP会话"""
         try:
-            # 获取配置
-            self.config = self.context.get_config()
-            
             # 创建数据库连接池
             mysql_config = self.config.get("MySQLConfig", {})
+            # 确保使用配置中的MySQL地址，如果没有则抛出错误
+            mysql_host = mysql_config.get("MySQLConfig_Address")
+            if not mysql_host:
+                raise ValueError("MySQLConfig_Address 未在配置中设置")
+                
+            logger.info(f"尝试连接到MySQL服务器: {mysql_host}:{mysql_config.get('MySQLConfig_Port', 3306)}")
+                
             self.db_pool = await aiomysql.create_pool(
-                host=mysql_config.get("MySQLConfig_Address", "127.0.0.1"),
+                host=mysql_host,
                 port=mysql_config.get("MySQLConfig_Port", 3306),
                 user=mysql_config.get("MySQLConfig_UserName", "LinkAmongUs"),
                 password=mysql_config.get("MySQLConfig_UserPassword", ""),
@@ -408,3 +413,15 @@ class LinkAmongUsPlugin(Star):
             yield event.plain_result("验证失败，请求已过期，请重新创建验证请求。")
         else:
             yield event.plain_result(f"验证失败，未知状态: {verify_status}")
+
+    @filter.command("verify help")
+    async def verify_help(self, event: AstrMessageEvent):
+        """帮助命令"""
+        # 从配置中获取帮助文本
+        help_text = self.get_config_value("HelpConfig.HelpConfig_Text", "")
+        
+        # 如果配置为空，则不启用该命令
+        if not help_text:
+            return
+            
+        yield event.plain_result(help_text)
