@@ -1,41 +1,87 @@
-# Astrbot 账号关联插件
+# LinkAmongUs 插件
 
-![AstrbotPlugin-LinkAmongUs](Asset/header-dark.svg)
+一个用于通过验证将 Among Us 账户与 QQ 账户关联的 Astrbot 插件。
 
-## 安装
+## 功能特性
 
-在 Astrbot 应用市场点击右下角 + 号，选择`从链接安装`，复制粘贴本仓库 URL 并点击安装即可。
+- 通过 API 验证将 Among Us 账户与 QQ 账户关联
+- 支持创建和检查验证请求
+- 数据库存储验证信息
+- 黑白名单管理
+- 超时处理机制
 
-## 使用
+## 安装方法
+
+1. 将插件文件夹复制到 Astrbot 的 plugins 目录下
+2. 在 Astrbot 配置文件中添加插件配置
+3. 安装依赖：`pip install -r requirements.txt`
+4. 重启 Astrbot
+
+## 配置说明
+
+在 Astrbot 的配置文件中添加以下配置项：
+
+```yaml
+LinkAmongUs:
+  # API 配置
+  APIConfig:
+    APIConfig_Key: "your_api_key"  # API 密钥
+    APIConfig_EndPoint: "http://your-api-endpoint.com"  # API 端点
+    APIConfig_ServerName: "YourServerName"  # 服务器名称
+  
+  # 验证配置
+  VerifyConfig:
+    # 创建验证配置
+    VerifyConfig_CreateVerfiyConfig:
+      CreateVerfiyConfig_ProcessDuration: 600  # 验证处理时长（秒）
+      CreateVerfiyConfig_ApiTimeout: 6  # API 请求超时时间（秒）
+    
+    # 黑名单好友代码
+    VerifyConfig_BlackFriendCode:
+      - "12345678"
+      - "87654321"
+    
+    # 白名单群组（留空则在所有群组中启用）
+    VerifyConfig_WhiteGroup: []
+```
+
+## 使用方法
+
+### 创建验证请求
 
 ```
-/verify create <FriendCode>
+/verify create <好友代码>
 ```
 
-创建一个验证请求，其中`FriendCode`为玩家的好友代码。
+### 检查验证状态
 
 ```
 /verify check
 ```
 
-主动请求完成验证，只有在先前创建过验证请求的玩家才可以使用此命令。
+## 数据库结构
 
-```
-/verify cancel [QQID|FriendCode]
+插件使用两个主要的数据表：
+
+1. `VerifyLog` - 存储验证请求日志
+2. `VerifyUserData` - 存储已验证的用户数据
+
+## API 接口
+
+插件与以下 API 接口交互：
+
+- `PUT /api/verify` - 创建验证请求
+- `GET /api/verify` - 查询验证状态
+- `DELETE /api/verify` - 删除验证请求
+
+## 测试
+
+插件包含完整的单元测试，可以通过以下方式运行：
+
+```bash
+python test_plugin.py
 ```
 
-取消当前验证请求，若出现意外情况无法完成验证，可以通过该命令立即回收占用的资源。\
-默认(不填写参数)取消自己的验证请求，若为管理员还可通过提供 QQ 号或好友代码来取消其他人的验证请求。
+## 技术支持
 
-```
-/verify status <QQID|FriendCode>
-```
-
-查询特定用户的验证状态，需要提供 QQ 号或好友代码。
-
-```
-/verify query <QQID|FriendCode>
-```
-
-查询特定用户的身份信息，需要提供 QQ 号或好友代码。\
-此选项主要用于检查某个用户是否完成验证，而不是获取该玩家的完整信息，因此出于隐私保护，大部分收集到的数据不会被发送出来。
+如有问题，请联系开发者或提交 Issue。
