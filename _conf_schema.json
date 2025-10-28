@@ -36,6 +36,12 @@
         "hint": "端点末尾不得带有斜杠，需要HTTP(S)协议头。",
         "default": "https://nb.server.qingfengawa.top"
       },
+      "APIConfig_ServerName": {
+        "type": "string",
+        "description": "服务器名称",
+        "hint": "向用户传达应加入哪个服务器以完成验证。",
+        "default": "清风服[宁波]"
+      },
       "APIConfig_Key": {
         "type": "string",
         "description": "API密钥",
@@ -52,6 +58,15 @@
         "description": "白名单群组",
         "hint": "只在配置的白名单群组中响应验证请求，留空则在所有群组启用。",
         "default": []
+      },
+      "VerifyConfig_BlackFriendCode": {
+        "type": "list",
+        "description": "黑名单好友代码",
+        "hint": "配置中的好友代码无法用于创建验证请求。",
+        "default": [
+          "kidcode#6666",
+          "nocode#9999"
+        ]
       }
     },
     "VerifyConfig_CreateVerfiyConfig": {
@@ -59,16 +74,16 @@
       "description": "验证创建设置",
       "hint": "/verify create命令的相关配置。",
       "items": {
-        "CreateVerfiyConfig_OnlyAdmin": {
-          "type": "bool",
-          "description": "仅管理员可用",
-          "hint": "仅允许管理员发起验证请求。",
-          "default": false
+        "CreateVerfiyConfig_ApiTimeout": {
+          "type": "int",
+          "description": "请求超时时间",
+          "hint": "向API发送请求后多少秒未得到响应就直接认定超时，设定过长可能会影响用户体验。该选项仅可填写1-600秒，出现意外值将回滚为6秒。",
+          "default": 6
         },
-        "CreateVerfiyConfig_TimeOut": {
+        "CreateVerfiyConfig_ProcessDuration": {
           "type": "int",
           "description": "验证超时时间",
-          "hint": "向API发送请求多少秒后主动标记为验证超时并发送销毁验证请求。由于Nmpostor限制，该值最大为600秒即10分钟，填写1-600以外值将回退为600秒。",
+          "hint": "向API发送请求多少秒后主动标记为验证超时并发送销毁验证请求。由于Nmpostor限制，该选项仅可填写1-600秒，出现意外值将回滚为600秒。",
           "default": 600
         }
       }
@@ -82,19 +97,6 @@
           "type": "bool",
           "description": "在超时前自动检查是否认证",
           "hint": "在超时前1分钟自动主动触发一次验证，此功能可防止某些用户忘记提交验证的问题。",
-          "default": true
-        }
-      }
-    },
-    "VerifyConfig_StatusInquiryConfig": {
-      "type": "object",
-      "description": "状态查询设置",
-      "hint": "/verify status命令的相关配置。",
-      "items": {
-        "StatusInquiryConfig_OnlyAdmin": {
-          "type": "bool",
-          "description": "仅管理员可用",
-          "hint": "仅允许管理员查询验证状态。",
           "default": true
         }
       }
