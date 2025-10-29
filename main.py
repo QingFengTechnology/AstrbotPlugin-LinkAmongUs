@@ -169,6 +169,23 @@ class LinkAmongUsPlugin(Star):
                     return dict(zip(columns, result))
                 return None
 
+    async def get_active_verify_request(self, user_qq_id: str) -> Optional[list]:
+        """获取用户所有进行中的验证请求（Status为Created或Retrying），按CreateTime降序排列"""
+        if not self.db_pool:
+            return None
+            
+        async with self.db_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT * FROM VerifyLog WHERE UserQQID = %s AND Status IN ('Created', 'Retrying') ORDER BY CreateTime DESC",
+                    (user_qq_id,)
+                )
+                results = await cursor.fetchall()
+                if results:
+                    columns = [desc[0] for desc in cursor.description]
+                    return [dict(zip(columns, row)) for row in results]
+                return None
+
     async def update_verify_log_status(self, sql_id: int, status: str) -> bool:
         """更新验证日志状态"""
         if not self.db_pool:
@@ -296,6 +313,24 @@ class LinkAmongUsPlugin(Star):
                 f"若要更换，请联系管理员。"
             )
             return
+
+        # 检查用户是否有进行中的验证请求
+        active_verify_request = await self.get_active_verify_request(user_qq_id)
+        if active_verify_request:
+            # 根据CreateTime判断最新数据
+            latest_request = active_verify_request[0]  # 已经按CreateTime DESC排序，第一个就是最新的
+            status = latest_request["Status"]
+            create_time = latest_request["CreateTime"]
+            verify_code = latest_request["VerifyCode"]
+            friend_code = latest_request["FriendCode"]
+            
+            if status in ["Created", "Retrying"]:
+                server_name = self.get_config_value("APIConfig.APIConfig_ServerName")
+                yield event.plain_result(
+                    f"创建验证请求失败，你已于 {create_time} 使用 {friend_code} 创建了一个验证请求，需要加入服务器 {server_name} 房间 {verify_code} 以完成验证。\n"
+                    f"请先完成当前验证。"
+                )
+                return
 
         # 向API发送PUT请求创建验证请求
         api_key = self.get_config_value("APIConfig.APIConfig_Key", "")
