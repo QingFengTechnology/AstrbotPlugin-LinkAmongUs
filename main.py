@@ -450,6 +450,56 @@ class LinkAmongUsPlugin(Star):
         else:
             yield event.plain_result(f"验证失败，未知状态: {verify_status}")
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("verify clean")
+    async def verify_clean(self, event: AstrMessageEvent):
+        """清理过期验证请求命令（仅管理员可用）"""
+        # 获取超时时间配置
+        process_duration = self.get_config_value("VerifyConfig.VerifyConfig_CreateVerfiyConfig.CreateVerfiyConfig_ProcessDuration", 600)
+        
+        if not self.db_pool:
+            yield event.plain_result("清理失败，数据库连接未建立。")
+            return
+
+        try:
+            # 获取当前时间
+            current_time = datetime.now()
+            
+            # 查询所有状态为Created或Retrying的记录
+            async with self.db_pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        "SELECT SQLID, CreateTime, Status, UserQQID, UserFriendCode FROM VerifyLog WHERE Status IN ('Created', 'Retrying')"
+                    )
+                    results = await cursor.fetchall()
+                    
+                    if not results:
+                        yield event.plain_result("没有找到需要清理的验证请求。")
+                        return
+                    
+                    expired_count = 0
+                    columns = [desc[0] for desc in cursor.description]
+                    
+                    # 检查每条记录是否超时
+                    for row in results:
+                        record = dict(zip(columns, row))
+                        create_time = record["CreateTime"]
+                        
+                        # 计算时间差（秒）
+                        time_diff = (current_time - create_time).total_seconds()
+                        
+                        # 如果超时，更新状态为Expired
+                        if time_diff > process_duration:
+                            await self.update_verify_log_status(record["SQLID"], "Expired")
+                            expired_count += 1
+                    
+                    # 发送结果报告
+                    yield event.plain_result(f"清理完成，共处理 {len(results)} 条验证请求，其中 {expired_count} 条已超时并标记为过期。")
+                    
+        except Exception as e:
+            logger.error(f"清理过期验证请求时发生错误: {e}")
+            yield event.plain_result("清理失败，发生内部错误，请查看日志。")
+
     @filter.command("verify help")
     async def verify_help(self, event: AstrMessageEvent):
         """帮助命令"""
