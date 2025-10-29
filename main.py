@@ -291,9 +291,21 @@ class LinkAmongUsPlugin(Star):
         user_qq_id = event.get_sender_id()
         user_qq_name = event.get_sender_name()
 
+        # 校验FriendCode格式：<字母>#<4位数字>，总字符数不超过25
+        if len(friend_code) > 25:
+            yield event.plain_result("创建验证请求失败，此好友代码非法。")
+            return
+            
+        # 检查格式是否符合 <字母>#<4位数字>
+        import re
+        pattern = r'^[A-Za-z]#\d{4}$'
+        if not re.match(pattern, friend_code):
+            yield event.plain_result("创建验证请求失败，此好友代码非法。")
+            return
+
         # 检查好友代码是否在黑名单中
         if await self.check_black_friend_code(friend_code):
-            yield event.plain_result("创建验证请求失败，此好友代码不能用于创建验证请求。")
+            yield event.plain_result("创建验证请求失败，此好友代码非法。")
             return
 
         # 检查用户QQ号是否已存在于数据库中
