@@ -1,4 +1,10 @@
 {
+  "WhitelistGroups": {
+    "description": "群聊白名单",
+    "type": "list",
+    "default": [],
+    "hint": "仅在这些群聊中使用本插件，留空则在所有群聊中启用。"
+  },
   "MySQLConfig": {
     "type": "object",
     "description": "MySQL设置",
@@ -62,12 +68,6 @@
     "type": "object",
     "description": "验证设置",
     "items": {
-      "VerifyConfig_WhiteGroup": {
-        "type": "list",
-        "description": "白名单群组",
-        "hint": "只在配置的白名单群组中响应验证请求，留空则在所有群组启用。",
-        "default": []
-      },
       "VerifyConfig_BlackFriendCode": {
         "type": "list",
         "description": "黑名单好友代码",

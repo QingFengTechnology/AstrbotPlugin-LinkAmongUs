@@ -17,6 +17,9 @@ class LinkAmongUsPlugin(Star):
         self.session = None
         self.config = config if config is not None else {}
         
+        # 加载白名单群组配置
+        self.whitelist_groups = self.get_config_value("WhitelistGroups", [])
+        
     async def initialize(self):
         """初始化插件，建立数据库连接池和HTTP会话"""
         try:
@@ -252,21 +255,13 @@ class LinkAmongUsPlugin(Star):
             logger.error(f"删除验证请求时发生错误: {e}")
             return False
 
-    async def check_whitelist_group(self, group_id: str) -> bool:
-        """检查群组是否在白名单中"""
-        white_list = self.get_config_value("VerifyConfig.VerifyConfig_WhiteGroup", [])
-        # 如果白名单为空，则在所有群组中启用
-        if not white_list:
-            return True
-        return group_id in white_list
-
     @filter.command("verify create")
     async def verify_create(self, event: AstrMessageEvent):
         """创建验证请求命令"""
         # 检查是否在白名单群组中
         group_id = event.get_group_id()
-        if group_id and not await self.check_whitelist_group(group_id):
-            yield event.plain_result("此群组不在验证服务白名单中。")
+        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
+            logger.debug(f"群 {group_id} 不在白名单内，跳过验证请求处理。")
             return
 
         # 获取用户输入的好友代码
@@ -346,6 +341,12 @@ class LinkAmongUsPlugin(Star):
     @filter.command("verify check")
     async def verify_check(self, event: AstrMessageEvent):
         """检查验证状态命令"""
+        # 检查是否在白名单群组中
+        group_id = event.get_group_id()
+        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
+            logger.debug(f"群 {group_id} 不在白名单内，跳过验证状态检查。")
+            return
+            
         user_qq_id = event.get_sender_id()
         
         # 检查用户是否有验证请求
@@ -417,6 +418,12 @@ class LinkAmongUsPlugin(Star):
     @filter.command("verify help")
     async def verify_help(self, event: AstrMessageEvent):
         """帮助命令"""
+        # 检查是否在白名单群组中
+        group_id = event.get_group_id()
+        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
+            logger.debug(f"群 {group_id} 不在白名单内，跳过帮助命令处理。")
+            return
+            
         # 从配置中获取帮助文本
         help_text = self.get_config_value("HelpConfig.HelpConfig_Text", "")
         
