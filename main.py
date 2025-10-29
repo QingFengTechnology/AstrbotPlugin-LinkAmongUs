@@ -428,6 +428,29 @@ class LinkAmongUsPlugin(Star):
             await self.update_verify_log_status(verify_log["SQLID"], "Retrying")
             yield event.plain_result("验证失败，请等待服务端处理完成。\n请稍后重试提交验证。")
         elif verify_status == "Verified":
+            # 额外检查用户的QQ号和FriendCode是否已存在于数据库
+            existing_user = await self.check_user_exists_in_verify_data(user_qq_id)
+            existing_friend_code = await self.check_friend_code_exists_in_verify_data(api_response.get("FriendCode", ""))
+            
+            # 如果用户QQ号或FriendCode已存在，则标记为Cancelled并提示用户
+            if existing_user or existing_friend_code:
+                await self.delete_verify_request(api_key, verify_log["VerifyCode"])
+                # 更新验证日志状态为Cancelled
+                await self.update_verify_log_status(verify_log["SQLID"], "Cancelled")
+                
+                # 构建错误消息
+                error_message = "验证失败，"
+                if existing_user:
+                    error_message += f"你的QQ号已绑定 {existing_user['UserFriendCode']}。"
+                if existing_friend_code:
+                    if existing_user:
+                        error_message += " "
+                    error_message += f"该好友代码已绑定 {existing_friend_code['UserQQID']}。"
+                error_message += "\n若要更换，请联系管理员。"
+                
+                yield event.plain_result(error_message)
+                return
+            
             # 插入用户验证数据
             user_data = {
                 "UserQQName": event.get_sender_name(),
