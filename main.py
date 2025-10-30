@@ -332,7 +332,7 @@ class LinkAmongUsPlugin(Star):
             
         # 检查格式是否符合 <字母>#<4位数字>
         import re
-        pattern = r'^[A-Za-z]#\d{4}$'
+        pattern = r'^[A-Za-z]+#\d{4}$'
         if not re.match(pattern, friend_code):
             logger.debug(f"[LinkAmongUs] 用户使用的好友代码格式错误，拒绝使用此好友代码创建验证请求。")
             yield event.plain_result("创建验证请求失败，此好友代码非法。")
