@@ -21,7 +21,7 @@ class LinkAmongUsPlugin(Star):
         logger.debug("[LinkAmongUs] 插件已启动。")
         
     async def initialize(self):
-        """初始化插件，建立数据库连接池和HTTP会话"""
+        """初始化插件"""
         try:
             # 创建数据库连接池
             mysql_config = self.config.get("MySQLConfig", {})
@@ -47,7 +47,7 @@ class LinkAmongUsPlugin(Star):
             raise
 
     async def terminate(self):
-        """插件销毁时关闭数据库连接和HTTP会话"""
+        """停止插件"""
         if self.db_pool:
             self.db_pool.close()
             await self.db_pool.wait_closed()
@@ -72,7 +72,7 @@ class LinkAmongUsPlugin(Star):
         return friend_code in black_list
 
     async def check_user_exists_in_verify_data(self, user_qq_id: str) -> Optional[Dict[str, Any]]:
-        """检查用户QQ号是否已存在于VerifyUserData表中"""
+        """检查用户QQ号是否已存在于数据库"""
         logger.info(f"[LinkAmongUs] 正在验证用户 {user_qq_id} 是否已关联 Among Us 账号。")
         if not self.db_pool:
             logger.error("[LinkAmongUs] 未能验证用户是否已关联 Among Us 账号：数据库连接池未初始化。")
@@ -94,7 +94,7 @@ class LinkAmongUsPlugin(Star):
                 return None
 
     async def check_friend_code_exists_in_verify_data(self, friend_code: str) -> Optional[Dict[str, Any]]:
-        """检查好友代码是否已存在于VerifyUserData表中"""
+        """检查好友代码是否已存在于数据库"""
         logger.info(f"[LinkAmongUs] 正在验证好友代码 {friend_code} 是否已关联 QQ 号。")
         if not self.db_pool:
             logger.error("[LinkAmongUs] 未能验证好友代码是否已关联 QQ 号：数据库连接池未初始化。")
@@ -116,7 +116,7 @@ class LinkAmongUsPlugin(Star):
                 return None
 
     async def create_verify_request(self, api_key: str, friend_code: str) -> Optional[Dict[str, Any]]:
-        """向API发送PUT请求创建验证请求"""
+        """向 API 发送创建验证请求"""
         api_endpoint = self.get_config_value("APIConfig.APIConfig_EndPoint", "")
         if not api_endpoint:
             logger.error("[LinkAmongUs] 未获取到有效的 API 端点，请检查你是否已在设置中配置。")
@@ -147,7 +147,7 @@ class LinkAmongUsPlugin(Star):
             return None
 
     async def insert_verify_log(self, user_qq_id: str, friend_code: str, verify_code: str) -> bool:
-        """向VerifyLog表插入验证日志"""
+        """写入验证日志"""
         logger.info(f"正在写入用户 {user_qq_id} 的验证日志。")
         if not self.db_pool:
             logger.error("[LinkAmongUs] 未能写入验证日志：数据库连接池未初始化。")
@@ -186,7 +186,7 @@ class LinkAmongUsPlugin(Star):
                 return None
 
     async def get_active_verify_request(self, user_qq_id: str) -> Optional[list]:
-        """获取用户所有进行中的验证请求（Status为Created或Retrying），按CreateTime降序排列"""
+        """获取用户所有进行中的验证请求"""
         logger.info(f"[LinkAmongUs] 正在获取用户 {user_qq_id} 所有进行中的验证请求。")
         if not self.db_pool:
             logger.error("[LinkAmongUs] 未能获取活跃验证请求：数据库连接池未初始化。")
@@ -226,7 +226,7 @@ class LinkAmongUsPlugin(Star):
             return False
 
     async def query_verify_status(self, api_key: str, verify_code: str) -> Optional[Dict[str, Any]]:
-        """向API发送GET请求查询验证状态"""
+        """向 API 查询验证请求状态"""
         api_endpoint = self.get_config_value("APIConfig.APIConfig_EndPoint", "")
         if not api_endpoint:
             logger.error("[LinkAmongUs] 未获取到有效的 API 端点，请检查你是否已在设置中配置。")
@@ -247,7 +247,7 @@ class LinkAmongUsPlugin(Star):
             return None
 
     async def insert_verify_user_data(self, user_data: Dict[str, Any]) -> bool:
-        """向VerifyUserData表插入用户验证数据"""
+        """写入用户身份数据"""
         logger.info(f"[LinkAmongUs] 准备写入用户 {user_data.get('UserQQID')}({user_data.get('UserFriendCode')}) 的身份数据。")
         if not self.db_pool:
             logger.error("[LinkAmongUs] 未能写入用户身份数据：数据库连接池未建立。")
@@ -280,7 +280,7 @@ class LinkAmongUsPlugin(Star):
             return False
 
     async def delete_verify_request(self, api_key: str, verify_code: str) -> bool:
-        """向API发送DELETE请求删除验证请求"""
+        """向 API 删除验证请求"""
         logger.debug(f"[LinkAmongUs] 准备删除房间 {verify_code} 的验证请求。")
         api_endpoint = self.get_config_value("APIConfig.APIConfig_EndPoint", "")
         if not api_endpoint:
@@ -307,7 +307,7 @@ class LinkAmongUsPlugin(Star):
 
     @filter.command("verify create")
     async def verify_create(self, event: AstrMessageEvent):
-        """创建验证请求命令"""
+        """创建一个验证请求"""
         # 检查是否在白名单群组中
         group_id = event.get_group_id()
         if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
@@ -432,7 +432,7 @@ class LinkAmongUsPlugin(Star):
 
     @filter.command("verify check")
     async def verify_check(self, event: AstrMessageEvent):
-        """检查验证状态命令"""
+        """完成一个验证请求"""
         # 检查是否在白名单群组中
         group_id = event.get_group_id()
         if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
@@ -547,7 +547,7 @@ class LinkAmongUsPlugin(Star):
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("verify clean")
     async def verify_clean(self, event: AstrMessageEvent):
-        """清理过期验证请求命令（仅管理员可用）"""
+        """清理数据库中的非法验证请求"""
         # 获取超时时间配置
         process_duration = self.get_config_value("VerifyConfig.VerifyConfig_CreateVerfiyConfig.CreateVerfiyConfig_ProcessDuration", 600)
         logger.info(f"[LinkAmongUs] 管理员请求了清理数据库中的非法验证请求。")
@@ -602,7 +602,7 @@ class LinkAmongUsPlugin(Star):
 
     @filter.command("verify help")
     async def verify_help(self, event: AstrMessageEvent):
-        """帮助命令"""
+        """发送帮助菜单"""
         # 检查是否在白名单群组中
         group_id = event.get_group_id()
         if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
