@@ -1,12 +1,11 @@
 import asyncio
 import aiohttp
 import aiomysql
-import json
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
+from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.star import Context, Star
 from astrbot.api import logger
 from astrbot.api import AstrBotConfig
 
