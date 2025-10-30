@@ -1,6 +1,6 @@
-# LinkAmongUs
+# Login with Among Us
 
-![](Asset/header-dark.svg)
+![AstrbotPlugin-LinkAmongUs](https://socialify.git.ci/QingFengTechnology/AstrbotPlugin-LinkAmongUs/image?description=1&font=KoHo&language=1&name=1&pattern=Solid&theme=Auto)
 
 ## 功能
 
