@@ -17,23 +17,23 @@ class LinkAmongUsPlugin(Star):
         self.config = config if config is not None else {}
         
         # 加载白名单群组配置
-        self.whitelist_groups = self.get_config_value("WhitelistGroups", [])
+        self.whitelist_groups = self.config.get("WhitelistGroups")
         logger.debug("[LinkAmongUs] 插件已启动。")
         
     async def initialize(self):
         """初始化插件"""
         try:
             # 创建数据库连接池
-            mysql_config = self.config.get("MySQLConfig", {})
+            mysql_config = self.config.get("MySQLConfig")
             mysql_host = mysql_config.get("MySQLConfig_Address")
-            logger.debug(f"[LinkAmongUs] 尝试连接到MySQL服务器: {mysql_host}:{mysql_config.get('MySQLConfig_Port', 3306)}")
+            logger.debug(f"[LinkAmongUs] 尝试连接到MySQL服务器: {mysql_host}:{mysql_config.get('MySQLConfig_Port')}")
                 
             self.db_pool = await aiomysql.create_pool(
                 host=mysql_host,
-                port=mysql_config.get("MySQLConfig_Port", 3306),
-                user=mysql_config.get("MySQLConfig_UserName", "LinkAmongUs"),
-                password=mysql_config.get("MySQLConfig_UserPassword", ""),
-                db=mysql_config.get("MySQLConfig_Database", "LinkAmongUs"),
+                port=mysql_config.get("MySQLConfig_Port"),
+                user=mysql_config.get("MySQLConfig_UserName"),
+                password=mysql_config.get("MySQLConfig_UserPassword"),
+                db=mysql_config.get("MySQLConfig_Database"),
                 charset='utf8mb4',
                 autocommit=True
             )
@@ -55,20 +55,9 @@ class LinkAmongUsPlugin(Star):
             await self.session.close()
         logger.debug("[LinkAmongUs] 插件已停止。")
 
-    def get_config_value(self, key_path: str, default=None):
-        """获取配置值"""
-        keys = key_path.split('.')
-        value = self.config
-        try:
-            for key in keys:
-                value = value[key]
-            return value
-        except KeyError:
-            return default
-
     async def check_black_friend_code(self, friend_code: str) -> bool:
         """检查好友代码是否在黑名单中"""
-        black_list = self.get_config_value("VerifyConfig.VerifyConfig_BlackFriendCode", [])
+        black_list = self.config.get("VerifyConfig", {}).get("VerifyConfig_BlackFriendCode")
         return friend_code in black_list
 
     async def check_user_exists_in_verify_data(self, user_qq_id: str) -> Optional[Dict[str, Any]]:
@@ -117,7 +106,7 @@ class LinkAmongUsPlugin(Star):
 
     async def create_verify_request(self, api_key: str, friend_code: str) -> Optional[Dict[str, Any]]:
         """向 API 发送创建验证请求"""
-        api_endpoint = self.get_config_value("APIConfig.APIConfig_EndPoint", "")
+        api_endpoint = self.config.get("APIConfig", {}).get("APIConfig_EndPoint")
         if not api_endpoint:
             logger.error("[LinkAmongUs] 未获取到有效的 API 端点，请检查你是否已在设置中配置。")
             return None
@@ -128,7 +117,7 @@ class LinkAmongUsPlugin(Star):
         }
         logger.info(f"[LinkAmongUs] 将以 {friend_code} 身份向 API 发送创建验证请求。")
         try:
-            timeout = self.get_config_value("VerifyConfig.VerifyConfig_CreateVerfiyConfig.CreateVerfiyConfig_ApiTimeout", 6)
+            timeout = self.config.get("VerifyConfig", {}).get("VerifyConfig_CreateVerfiyConfig", {}).get("CreateVerfiyConfig_ApiTimeout")
             async with self.session.put(url, json=payload, timeout=timeout) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -227,7 +216,7 @@ class LinkAmongUsPlugin(Star):
 
     async def query_verify_status(self, api_key: str, verify_code: str) -> Optional[Dict[str, Any]]:
         """向 API 查询验证请求状态"""
-        api_endpoint = self.get_config_value("APIConfig.APIConfig_EndPoint", "")
+        api_endpoint = self.config.get("APIConfig", {}).get("APIConfig_EndPoint")
         if not api_endpoint:
             logger.error("[LinkAmongUs] 未获取到有效的 API 端点，请检查你是否已在设置中配置。")
             return None
@@ -235,7 +224,7 @@ class LinkAmongUsPlugin(Star):
         url = f"{api_endpoint}/api/verify?apikey={api_key}&verifycode={verify_code}"
         
         try:
-            timeout = self.get_config_value("VerifyConfig.VerifyConfig_CreateVerfiyConfig.CreateVerfiyConfig_ApiTimeout", 6)
+            timeout = self.config.get("VerifyConfig", {}).get("VerifyConfig_CreateVerfiyConfig", {}).get("CreateVerfiyConfig_ApiTimeout")
             async with self.session.get(url, timeout=timeout) as response:
                 if response.status == 200:
                     logger.info(f"[LinkAmongUs] 成功查询房间 {verify_code} 的验证状态。")
@@ -282,7 +271,7 @@ class LinkAmongUsPlugin(Star):
     async def delete_verify_request(self, api_key: str, verify_code: str) -> bool:
         """向 API 删除验证请求"""
         logger.debug(f"[LinkAmongUs] 准备删除房间 {verify_code} 的验证请求。")
-        api_endpoint = self.get_config_value("APIConfig.APIConfig_EndPoint", "")
+        api_endpoint = self.config.get("APIConfig", {}).get("APIConfig_EndPoint")
         if not api_endpoint:
             logger.error("[LinkAmongUs] 未获取到有效的 API 端点，请检查你是否已在设置中配置。")
             return False
@@ -294,7 +283,7 @@ class LinkAmongUsPlugin(Star):
         }
         
         try:
-            timeout = self.get_config_value("VerifyConfig.VerifyConfig_CreateVerfiyConfig.CreateVerfiyConfig_ApiTimeout", 6)
+            timeout = self.config.get("VerifyConfig", {}).get("VerifyConfig_CreateVerfiyConfig", {}).get("CreateVerfiyConfig_ApiTimeout")
             async with self.session.delete(url, json=payload, timeout=timeout) as response:
                 if response.status == 200:
                     logger.debug(f"[LinkAmongUs] 成功删除房间 {verify_code} 的验证请求。")
@@ -375,7 +364,7 @@ class LinkAmongUsPlugin(Star):
             friend_code = latest_request["FriendCode"]
             
             if status in ["Created", "Retrying"]:
-                server_name = self.get_config_value("APIConfig.APIConfig_ServerName")
+                server_name = self.config.get("APIConfig", {}).get("APIConfig_ServerName")
                 logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 已有进行中的验证请求，拒绝重复创建验证请求。")
                 yield event.plain_result(
                     f"创建验证请求失败，你已于 {create_time} 使用 {friend_code} 创建了一个验证请求，需要加入服务器 {server_name} 房间 {verify_code} 以完成验证。\n"
@@ -384,7 +373,7 @@ class LinkAmongUsPlugin(Star):
                 return
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用 Among Us 账号 {friend_code} 创建了一个验证请求。")
         # 向API发送PUT请求创建验证请求
-        api_key = self.get_config_value("APIConfig.APIConfig_Key", "")
+        api_key = self.config.get("APIConfig", {}).get("APIConfig_Key")
         if not api_key:
             logger.warning("[LinkAmongUs] 创建验证请求失败，未获取到 API 密钥。")
             yield event.plain_result("创建验证请求失败，API密钥未配置，请联系管理员。")
@@ -404,8 +393,8 @@ class LinkAmongUsPlugin(Star):
             return
 
         # 发送成功消息
-        process_duration = self.get_config_value("VerifyConfig.VerifyConfig_CreateVerfiyConfig.CreateVerfiyConfig_ProcessDuration", 600)
-        server_name = self.get_config_value("APIConfig.APIConfig_ServerName", "服务器")
+        process_duration = self.config.get("VerifyConfig", {}).get("VerifyConfig_CreateVerfiyConfig", {}).get("CreateVerfiyConfig_ProcessDuration")
+        server_name = self.config.get("APIConfig", {}).get("APIConfig_ServerName")
         
         success_message = (
             f"成功创建验证请求，请在 {process_duration} 秒内使用账号 {friend_code} 加入 {server_name} 房间 {verify_code} 以完成验证。"
@@ -457,7 +446,7 @@ class LinkAmongUsPlugin(Star):
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求完成验证。")
 
         # 向API发送GET请求查询验证状态
-        api_key = self.get_config_value("APIConfig.APIConfig_Key", "")
+        api_key = self.config.get("APIConfig", {}).get("APIConfig_Key")
         if not api_key:
             logger.warning("[LinkAmongUs] 完成验证请求失败，未获取到 API 密钥。")
             yield event.plain_result("检查验证失败，API密钥未配置，请联系管理员。")
@@ -549,7 +538,7 @@ class LinkAmongUsPlugin(Star):
     async def verify_clean(self, event: AstrMessageEvent):
         """清理数据库中的非法验证请求"""
         # 获取超时时间配置
-        process_duration = self.get_config_value("VerifyConfig.VerifyConfig_CreateVerfiyConfig.CreateVerfiyConfig_ProcessDuration", 600)
+        process_duration = self.config.get("VerifyConfig", {}).get("VerifyConfig_CreateVerfiyConfig", {}).get("CreateVerfiyConfig_ProcessDuration")
         logger.info(f"[LinkAmongUs] 管理员请求了清理数据库中的非法验证请求。")
         
         if not self.db_pool:
@@ -610,7 +599,7 @@ class LinkAmongUsPlugin(Star):
             return
             
         # 从配置中获取帮助文本
-        help_text = self.get_config_value("HelpConfig.HelpConfig_Text", "")
+        help_text = self.config.get("HelpConfig", {}).get("HelpConfig_Text")
         
         # 如果配置为空，则不启用该命令
         if not help_text:
