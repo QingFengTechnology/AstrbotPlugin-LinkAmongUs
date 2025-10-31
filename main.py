@@ -38,12 +38,78 @@ class LinkAmongUsPlugin(Star):
                 autocommit=True
             )
             
+            # 检查并创建必要的数据表
+            await self._check_and_create_tables()
+            
             # 创建HTTP会话
             self.session = aiohttp.ClientSession()
             
             logger.info("[LinkAmongUs] 插件初始化完成。")
         except Exception as e:
             logger.error(f"[LinkAmongUs] 初始化时发生错误: {e}")
+            raise
+
+    async def _check_and_create_tables(self):
+        """检查并创建必要的数据表"""
+        logger.debug("[LinkAmongUs] 正在进行数据表完整性校验。")
+        
+        # 需要检查的数据表列表
+        required_tables = ["VerifyUserData", "VerifyLog"]
+        
+        async with self.db_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                # 检查每个表是否存在
+                for table_name in required_tables:
+                    await cursor.execute(
+                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
+                        (table_name,)
+                    )
+                    result = await cursor.fetchone()
+                    
+                    if result[0] == 0:
+                        logger.debug(f"[LinkAmongUs] 数据表 {table_name} 不存在，正在创建...")
+                        await self._create_table(cursor, table_name)
+                    else:
+                        logger.debug(f"[LinkAmongUs] 数据表 {table_name} 已存在。")
+
+    async def _create_table(self, cursor, table_name):
+        """创建指定的数据表"""
+        try:
+            if table_name == "VerifyUserData":
+                await cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS VerifyUserData (
+                        SQLID smallint NOT NULL AUTO_INCREMENT,
+                        LastUpdated datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        UserQQName varchar(40) DEFAULT NULL,
+                        UserQQID varchar(13) NOT NULL,
+                        UserAmongUsName varchar(11) DEFAULT NULL,
+                        UserFriendCode varchar(32) NOT NULL,
+                        UserPuid varchar(48) NOT NULL,
+                        UserHashedPuid varchar(11) NOT NULL,
+                        UserUdpPlatform varchar(32) NOT NULL,
+                        UserTokenPlatform varchar(32) NOT NULL,
+                        UserUdpIP varchar(32) NOT NULL,
+                        UserHttpIP varchar(128) NOT NULL,
+                        PRIMARY KEY (SQLID),
+                        UNIQUE KEY unique_user_data (UserQQID, UserFriendCode, UserPuid, UserHashedPuid)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+                """)
+            elif table_name == "VerifyLog":
+                await cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS VerifyLog (
+                        SQLID smallint NOT NULL AUTO_INCREMENT,
+                        CreateTime datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        Status set('Created','Retrying','Verified','Cancelled','Expired') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+                        UserQQID varchar(13) NOT NULL,
+                        UserFriendCode varchar(32) NOT NULL,
+                        VerifyCode varchar(7) NOT NULL,
+                        PRIMARY KEY (SQLID)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+                """)
+            
+            logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
+        except Exception as e:
+            logger.error(f"[LinkAmongUs] 创建数据表 {table_name} 时发生错误: {e}")
             raise
 
     async def terminate(self):
