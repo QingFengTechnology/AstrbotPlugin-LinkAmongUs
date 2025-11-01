@@ -39,7 +39,7 @@
 ### 完成验证
 
 ```
-/verify check
+/verify finish
 ```
 完成验证请求。\
 由于 Nmpostor 不支持回调，因此需要通过该命令主动让插件请求 API 校验验证请求。

@@ -390,7 +390,7 @@ class LinkAmongUs(Star):
         命令列表：
         /verify help - 显示帮助菜单
         /verify create - 创建验证请求
-        /verify check - 完成验证请求
+        /verify finish - 完成验证请求
         /verify clean - 清理非法验证请求
         """)
 
@@ -512,8 +512,8 @@ class LinkAmongUs(Star):
                 logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求已超时。")
                 await self.update_verify_log_status(verify_log["SQLID"], "Expired")
 
-    @verify.command("check")
-    async def verify_check(self, event: AstrMessageEvent):
+    @verify.command("finish")
+    async def verify_finish(self, event: AstrMessageEvent):
         """完成一个验证请求"""
         # 检查是否在白名单群组中
         group_id = event.get_group_id()

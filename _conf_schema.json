@@ -96,15 +96,15 @@
           }
         }
       },
-      "VerifyConfig_VerifyCheckConfig": {
+      "VerifyConfig_VerifyFinishConfig": {
         "type": "object",
-        "description": "验证检查设置",
-        "hint": "/verify check命令的相关配置。",
+        "description": "验证完成设置",
+        "hint": "/verify finish命令的相关配置。",
         "items": {
-          "VerifyCheckConfig_AutoCheck": {
+          "VerifyFinishConfig_AutoCheck": {
             "type": "bool",
-            "description": "在超时前自动检查是否认证",
-            "hint": "在超时前1分钟自动主动触发一次验证，此功能可防止某些用户忘记提交验证的问题。",
+            "description": "在超时前自动完成验证",
+            "hint": "在超时前1分钟自动尝试完成验证，此功能可防止某些用户忘记使用命令的问题。",
             "default": true
           }
         }
