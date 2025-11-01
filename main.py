@@ -434,7 +434,7 @@ class LinkAmongUsPlugin(Star):
             status = latest_request["Status"]
             create_time = latest_request["CreateTime"]
             verify_code = latest_request["VerifyCode"]
-            friend_code = latest_request["FriendCode"]
+            friend_code = latest_request["UserFriendCode"]
             
             if status in ["Created", "Retrying"]:
                 server_name = self.config.get("APIConfig", {}).get("APIConfig_ServerName")
