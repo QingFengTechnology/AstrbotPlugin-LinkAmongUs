@@ -360,8 +360,23 @@ class LinkAmongUsPlugin(Star):
             logger.error(f"[LinkAmongUs] 删除验证请求时发生错误: {e}")
             return False
 
-    @filter.command("verify create")
-    async def verify_create(self, event: AstrMessageEvent):
+    @filter.command_group("verify")
+    def verify(self):
+        """插件命令列表"""
+        group_id = event.get_group_id()
+        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
+            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+            return
+        yield event.plain_result("""
+        命令列表：
+        /verify help - 显示帮助菜单
+        /verify create - 创建验证请求
+        /verify check - 完成验证请求
+        /verify clean - 清理非法验证请求
+        """)
+
+    @verify.command("create")
+    async def verify_create(self, event: AstrMessageEvent, friend_code: str):
         """创建一个验证请求"""
         # 检查是否在白名单群组中
         group_id = event.get_group_id()
@@ -369,14 +384,6 @@ class LinkAmongUsPlugin(Star):
             logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
             return
 
-        # 获取用户输入的好友代码
-        message_parts = event.message_str.strip().split()
-        if len(message_parts) < 3:
-            logger.debug(f"[LinkAmongUs] 用户输入参数不正确，取消创建验证请求。")
-            yield event.plain_result("参数错误，请使用格式: /verify create <好友代码>")
-            return
-            
-        friend_code = message_parts[2]
         user_qq_id = event.get_sender_id()
 
         # 校验FriendCode格式：<字母>#<4位数字>，总字符数不超过25
@@ -485,7 +492,7 @@ class LinkAmongUsPlugin(Star):
                 logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求已超时。")
                 await self.update_verify_log_status(verify_log["SQLID"], "Expired")
 
-    @filter.command("verify check")
+    @verify.command("check")
     async def verify_check(self, event: AstrMessageEvent):
         """完成一个验证请求"""
         # 检查是否在白名单群组中
@@ -600,7 +607,7 @@ class LinkAmongUsPlugin(Star):
             yield event.plain_result(f"验证失败，你的验证请求状态非法，请联系管理员。")
 
     @filter.permission_type(filter.PermissionType.ADMIN)
-    @filter.command("verify clean")
+    @verify.command("clean")
     async def verify_clean(self, event: AstrMessageEvent):
         """清理数据库中的非法验证请求"""
         # 获取超时时间配置
@@ -655,7 +662,7 @@ class LinkAmongUsPlugin(Star):
             logger.error(f"[LinkAmongUs] 清理非法验证请求时发生错误: {e}")
             yield event.plain_result("清理失败，发生意外错误，请查看日志。")
 
-    @filter.command("verify help")
+    @verify.command("help")
     async def verify_help(self, event: AstrMessageEvent):
         """发送帮助菜单"""
         # 检查是否在白名单群组中
