@@ -9,7 +9,7 @@ from astrbot.api.star import Context, Star
 from astrbot.api import logger
 from astrbot.api import AstrBotConfig
 
-class LinkAmongUsPlugin(Star):
+class LinkAmongUs(Star):
     def __init__(self, context: Context, config: Dict[str, Any]):
         super().__init__(context)
         self.db_pool = None
