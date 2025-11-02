@@ -9,6 +9,21 @@ from astrbot.api.star import Context, Star
 from astrbot.api import logger
 from astrbot.api import AstrBotConfig
 
+HELP_MENU = """AstrbotPlugin-LinkAmongUs v1.2.0 By QingFeng
+/verify help - 显示此帮助菜单。
+
+/verify create <FriendCode> - 创建一个验证请求。
+Args:
+  - FriendCode: 必填。你要关联的 Among Us 好友代码。
+
+/verify finish - 完成一个验证请求。
+- 由于服务器技术限制暂不支持自动完成，因此您必须要通过此命令主动完成验证请求。
+
+@PermissionType.ADMIN
+/verfiy clean - 清理数据库中的非法验证请求。
+- 此操作将检查数据库中的验证日志表，将所有创建超过 10 分钟的但仍未结束的验证日志标记为过期。
+"""
+
 class LinkAmongUs(Star):
     def __init__(self, context: Context, config: Dict[str, Any]):
         super().__init__(context)
@@ -691,14 +706,4 @@ class LinkAmongUs(Star):
         if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
             logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
             return
-            
-        # 从配置中获取帮助文本
-        help_text = self.help_config.get("HelpConfig_Text")
-        
-        # 如果配置为空，则不启用该命令
-        if not help_text:
-            logger.debug("[LinkAmongUs] 帮助文本未配置，取消显示帮助文本。")
-            return
-            
-        logger.debug(f"[LinkAmongUs] 将发送帮助信息至群里 {group_id}。")
-        yield event.plain_result(help_text)
+        yield event.plain_result(HELP_MENU)

@@ -114,7 +114,8 @@
   "HelpConfig": {
     "type": "object",
     "description": "插件帮助设置",
-    "hint": "/verify help命令的相关配置。",
+    "hint": "/verify help命令的相关配置。已弃用，配置已无效，将在下个版本移除。",
+    "invisible": true,
     "items": {
       "HelpConfig_Text": {
         "type": "text",
