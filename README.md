@@ -27,7 +27,7 @@
 ```
 /verify help
 ```
-显示插件配置中定义的帮助菜单。
+显示帮助菜单。
 
 ### 创建验证
 
@@ -50,3 +50,15 @@
 /verify clean
 ```
 清理数据表`VerifyLog`中已超时但状态仍处于已创建/重试中的验证请求。
+
+### 查询用户
+
+```
+/verify info
+```
+查询自己关联的 Among Us 账号信息。
+
+```
+/verify query <QQID|FriendCode>
+```
+查询指定用户的账号关联信息。
