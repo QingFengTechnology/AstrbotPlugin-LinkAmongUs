@@ -23,6 +23,11 @@ Args:
 - 显示您当前绑定的 Among Us 角色名、好友代码和绑定时间。
 
 @PermissionType.ADMIN
+/verify query <UserQQID|UserFriendCode> - 查询指定用户的绑定信息。
+Args:
+  - UserQQID|UserFriendCode: 必填。要查询的用户QQ号或好友代码（二选一）。
+
+@PermissionType.ADMIN
 /verfiy clean - 清理数据库中的非法验证请求。
 - 此操作将检查数据库中的验证日志表，将所有创建超过 10 分钟的但仍未结束的验证日志标记为过期。
 """
@@ -224,6 +229,38 @@ class LinkAmongUs(Star):
                     logger.info(f"[LinkAmongUs] 成功查询到用户 {user_qq_id} 的绑定信息。")
                     return result_dict
                 logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未绑定 Among Us 账号。")
+                return None
+
+    async def query_user_verify_info(self, identifier: str) -> Optional[Dict[str, Any]]:
+        """根据UserQQID或UserFriendCode查询用户的绑定信息（管理员专用）"""
+        logger.info(f"[LinkAmongUs] 管理员正在查询用户 {identifier} 的绑定信息。")
+        if not self.db_pool:
+            logger.error("[LinkAmongUs] 未能查询用户绑定信息：数据库连接池未初始化。")
+            return None
+        
+        async with self.db_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                # 首先尝试按UserQQID查询
+                await cursor.execute(
+                    "SELECT UserQQID, UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserQQID = %s",
+                    (identifier,)
+                )
+                result = await cursor.fetchone()
+                
+                # 如果没有找到，再尝试按UserFriendCode查询
+                if not result:
+                    await cursor.execute(
+                        "SELECT UserQQID, UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserFriendCode = %s",
+                        (identifier,)
+                    )
+                    result = await cursor.fetchone()
+                
+                if result:
+                    columns = [desc[0] for desc in cursor.description]
+                    result_dict = dict(zip(columns, result))
+                    logger.info(f"[LinkAmongUs] 管理员成功查询到用户 {identifier} 的绑定信息。")
+                    return result_dict
+                logger.info(f"[LinkAmongUs] 未找到用户 {identifier} 的绑定信息。")
                 return None
 
     async def create_verify_request(self, api_key: str, friend_code: str) -> Optional[Dict[str, Any]]:
@@ -723,9 +760,53 @@ class LinkAmongUs(Star):
             logger.error(f"[LinkAmongUs] 清理非法验证请求时发生错误: {e}")
             yield event.plain_result("清理失败，发生意外错误，请查看日志。")
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @verify.command("query")
+    async def verify_query(self, event: AstrMessageEvent):
+        """查询指定用户的账号关联信息"""
+        # 检查是否在白名单群组中
+        group_id = event.get_group_id()
+        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
+            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+            return
+            
+        # 获取查询参数
+        message = event.get_message_str().strip()
+        if not message:
+            yield event.plain_result("请提供要查询的用户QQ号或好友代码。")
+            return
+            
+        # 解析参数
+        params = message.split()
+        if len(params) < 2:
+            yield event.plain_result("参数错误，请提供要查询的用户QQ号或好友代码。")
+            return
+            
+        query_value = params[1]  # 第一个参数是命令本身，第二个参数是查询值
+        
+        # 查询用户绑定信息
+        user_data = await self.query_user_verify_info(query_value)
+        
+        if user_data:
+            # 记录管理员操作日志
+            operator_qq_id = event.get_sender_id()
+            logger.info(f"[LinkAmongUs] 管理员 {operator_qq_id} 查询了用户 {query_value} 的绑定信息。")
+            
+            # 格式化返回信息
+            message = (
+                f"用户 {user_data['UserQQID']} 账号关联信息：\n"
+                f"账号名称：{user_data['UserAmongUsName']}\n"
+                f"好友代码: {user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
+                f"账号平台：{user_data['UserTokenPlatform']}\n"
+                f"关联时间: {user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
+
     @verify.command("info")
     async def verify_info(self, event: AstrMessageEvent):
-        """查询用户的绑定信息"""
+        """查询当前用户的账号关联信息"""
         # 检查是否在白名单群组中
         group_id = event.get_group_id()
         if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
