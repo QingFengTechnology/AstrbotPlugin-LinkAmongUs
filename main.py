@@ -19,6 +19,9 @@ Args:
 /verify finish - 完成一个验证请求。
 - 由于服务器技术限制暂不支持自动完成，因此您必须要通过此命令主动完成验证请求。
 
+/verify info - 查询您的绑定信息。
+- 显示您当前绑定的 Among Us 角色名、好友代码和绑定时间。
+
 @PermissionType.ADMIN
 /verfiy clean - 清理数据库中的非法验证请求。
 - 此操作将检查数据库中的验证日志表，将所有创建超过 10 分钟的但仍未结束的验证日志标记为过期。
@@ -199,6 +202,28 @@ class LinkAmongUs(Star):
                     logger.info(f"[LinkAmongUs] 好友代码 {friend_code} 已关联 QQ 号 {qq_id}。")
                     return dict(zip(columns, result))
                 logger.info(f"[LinkAmongUs] 好友代码 {friend_code} 尚未关联 QQ 号。")
+                return None
+
+    async def get_user_verify_info(self, user_qq_id: str) -> Optional[Dict[str, Any]]:
+        """获取用户的绑定信息"""
+        logger.info(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的绑定信息。")
+        if not self.db_pool:
+            logger.error("[LinkAmongUs] 未能查询用户绑定信息：数据库连接池未初始化。")
+            return None
+        
+        async with self.db_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserQQID = %s",
+                    (user_qq_id,)
+                )
+                result = await cursor.fetchone()
+                if result:
+                    columns = [desc[0] for desc in cursor.description]
+                    result_dict = dict(zip(columns, result))
+                    logger.info(f"[LinkAmongUs] 成功查询到用户 {user_qq_id} 的绑定信息。")
+                    return result_dict
+                logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未绑定 Among Us 账号。")
                 return None
 
     async def create_verify_request(self, api_key: str, friend_code: str) -> Optional[Dict[str, Any]]:
@@ -697,6 +722,33 @@ class LinkAmongUs(Star):
         except Exception as e:
             logger.error(f"[LinkAmongUs] 清理非法验证请求时发生错误: {e}")
             yield event.plain_result("清理失败，发生意外错误，请查看日志。")
+
+    @verify.command("info")
+    async def verify_info(self, event: AstrMessageEvent):
+        """查询用户的绑定信息"""
+        # 检查是否在白名单群组中
+        group_id = event.get_group_id()
+        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
+            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+            return
+            
+        user_qq_id = event.get_sender_id()
+        
+        # 查询用户绑定信息
+        user_data = await self.get_user_verify_info(user_qq_id)
+        
+        if user_data:
+            # 格式化返回信息
+            message = (
+                f"用户 {user_qq_id} 账号关联信息：\n"
+                f"账号名称：{user_data['UserAmongUsName']}\n"
+                f"好友代码: {user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
+                f"账号平台：{user_data['UserTokenPlatform']}\n"
+                f"关联时间: {user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result(f"用户 {user_qq_id} 尚未绑定 Among Us 账号。")
 
     @verify.command("help")
     async def verify_help(self, event: AstrMessageEvent):
