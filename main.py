@@ -9,7 +9,7 @@ from astrbot.api.star import Context, Star
 from astrbot.api import logger
 from astrbot.api import AstrBotConfig
 
-HELP_MENU = """AstrbotPlugin-LinkAmongUs v1.2.0 By QingFeng
+HELP_MENU = """AstrbotPlugin-LinkAmongUs v1.3.0 By QingFeng
 /verify help - 显示此帮助菜单。
 
 /verify create <FriendCode> - 创建一个验证请求。
@@ -23,9 +23,9 @@ Args:
 - 显示您当前绑定的 Among Us 角色名、好友代码和绑定时间。
 
 @PermissionType.ADMIN
-/verify query <UserQQID|UserFriendCode> - 查询指定用户的绑定信息。
+/verify query <QQID|FriendCode> - 查询指定用户的账号关联信息。
 Args:
-  - UserQQID|UserFriendCode: 必填。要查询的用户QQ号或好友代码（二选一）。
+  - QQID|FriendCode: 必填。要查询的用户QQ号或好友代码（二选一）。
 
 @PermissionType.ADMIN
 /verfiy clean - 清理数据库中的非法验证请求。
