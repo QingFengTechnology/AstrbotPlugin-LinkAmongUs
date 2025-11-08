@@ -762,7 +762,7 @@ class LinkAmongUs(Star):
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @verify.command("query")
-    async def verify_query(self, event: AstrMessageEvent):
+    async def verify_query(self, event: AstrMessageEvent, query_value: str):
         """查询指定用户的账号关联信息"""
         # 检查是否在白名单群组中
         group_id = event.get_group_id()
@@ -770,20 +770,6 @@ class LinkAmongUs(Star):
             logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
             return
             
-        # 获取查询参数
-        message = event.get_message_str().strip()
-        if not message:
-            yield event.plain_result("请提供要查询的用户QQ号或好友代码。")
-            return
-            
-        # 解析参数
-        params = message.split()
-        if len(params) < 2:
-            yield event.plain_result("参数错误，请提供要查询的用户QQ号或好友代码。")
-            return
-            
-        query_value = params[1]  # 第一个参数是命令本身，第二个参数是查询值
-        
         # 查询用户绑定信息
         user_data = await self.query_user_verify_info(query_value)
         
