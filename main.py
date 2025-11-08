@@ -770,6 +770,20 @@ class LinkAmongUs(Star):
             logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
             return
             
+        # 首先判断是否为FriendCode格式
+        import re
+        friend_code_pattern = r'^[A-Za-z]+#\d{4}$'
+        is_friend_code = len(query_value) <= 25 and re.match(friend_code_pattern, query_value)
+        
+        # 如果不是FriendCode，检查是否为QQ号（5-13位纯数字）
+        is_qq_number = query_value.isdigit() and 5 <= len(query_value) <= 13
+        
+        # 如果既不是FriendCode也不是QQ号，则返回错误
+        if not is_friend_code and not is_qq_number:
+            logger.debug(f"[LinkAmongUs] 管理员查询的用户非法，拒绝使用此参数查询用户信息。")
+            yield event.plain_result("查询参数非法。")
+            return
+            
         # 查询用户绑定信息
         user_data = await self.query_user_verify_info(query_value)
         
