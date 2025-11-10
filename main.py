@@ -9,7 +9,7 @@ from astrbot.api.star import Context, Star
 from astrbot.api import logger
 from astrbot.api import AstrBotConfig
 
-HELP_MENU = """AstrbotPlugin-LinkAmongUs v1.4.0 By QingFeng
+HELP_MENU = """AstrbotPlugin-LinkAmongUs v1.3.1 By QingFeng
 /verify help - 显示此帮助菜单。
 
 /verify create <FriendCode> - 创建一个验证请求。
