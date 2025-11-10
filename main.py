@@ -461,18 +461,7 @@ class LinkAmongUs(Star):
     @filter.command_group("verify")
     def verify(self):
         """插件命令列表"""
-        group_id = event.get_group_id()
-        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
-            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
-            return
-        yield event.plain_result("""
-        命令列表：
-        /verify help - 显示帮助菜单
-        /verify create - 创建验证请求
-        /verify finish - 完成验证请求
-        /verify cancel - 取消验证请求
-        /verify clean - 清理非法验证请求
-        """)
+        pass
 
     @verify.command("create")
     async def verify_create(self, event: AstrMessageEvent, friend_code: str):
