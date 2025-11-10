@@ -19,6 +19,9 @@ Args:
 /verify finish - 完成一个验证请求。
 - 由于服务器技术限制暂不支持自动完成，因此您必须要通过此命令主动完成验证请求。
 
+/verify cancel - 取消当前的验证请求。
+- 取消您当前活跃的验证请求，将其状态标记为已取消。
+
 /verify info - 查询您的绑定信息。
 - 显示您当前绑定的 Among Us 角色名、好友代码和绑定时间。
 
@@ -468,6 +471,7 @@ class LinkAmongUs(Star):
         /verify help - 显示帮助菜单
         /verify create - 创建验证请求
         /verify finish - 完成验证请求
+        /verify cancel - 取消验证请求
         /verify clean - 清理非法验证请求
         """)
 
@@ -794,6 +798,47 @@ class LinkAmongUs(Star):
             yield event.plain_result(message)
         else:
             yield event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
+
+    @verify.command("cancel")
+    async def verify_cancel(self, event: AstrMessageEvent):
+        """取消用户当前的验证请求"""
+        # 检查是否在白名单群组中
+        group_id = event.get_group_id()
+        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
+            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+            return
+            
+        user_qq_id = event.get_sender_id()
+        
+        # 检查用户是否有活跃的验证请求
+        verify_log = await self.get_active_verify_request(user_qq_id)
+        if not verify_log:
+            logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝取消验证请求。")
+            yield event.plain_result("你没有进行中的验证请求需要取消。")
+            return
+
+        logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求取消验证请求。")
+
+        # 获取API密钥
+        api_key = self.api_config.get("APIConfig_Key")
+        if not api_key:
+            logger.warning("[LinkAmongUs] 取消验证请求失败，未获取到 API 密钥。")
+            yield event.plain_result("取消验证请求失败，API密钥未配置，请联系管理员。")
+            return
+
+        # 向API发送DELETE请求删除验证请求
+        verify_code = verify_log["VerifyCode"]
+        delete_success = await self.delete_verify_request(api_key, verify_code)
+        
+        # 更新验证日志状态为Cancelled
+        update_success = await self.update_verify_log_status(verify_log["SQLID"], "Cancelled")
+        
+        if delete_success and update_success:
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 成功取消验证请求 {verify_code}。")
+            yield event.plain_result(f"已成功取消你于 {verify_log['CreateTime'].strftime('%Y-%m-%d %H:%M:%S')} 使用 {verify_log['UserFriendCode']} 创建的验证请求。")
+        else:
+            logger.warning(f"[LinkAmongUs] 未能取消用户 {user_qq_id} 的验证请求。")
+            yield event.plain_result("取消请求时发生意外错误，请联系管理员。")
 
     @verify.command("info")
     async def verify_info(self, event: AstrMessageEvent):
