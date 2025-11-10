@@ -528,7 +528,7 @@ class LinkAmongUs(Star):
                 logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 已有进行中的验证请求，拒绝重复创建验证请求。")
                 yield event.plain_result(
                     f"创建验证请求失败，你已于 {create_time} 使用 {friend_code} 创建了一个验证请求，需要加入服务器 {server_name} 房间 {verify_code} 以完成验证。\n"
-                    f"请先完成当前验证。"
+                    f"请先完成或取消现有的验证请求。"
                 )
                 return
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用 Among Us 账号 {friend_code} 创建了一个验证请求。")
@@ -621,8 +621,8 @@ class LinkAmongUs(Star):
             yield event.plain_result("验证失败，你还没有进行验证。")
         elif verify_status == "HttpPending":
             await self.update_verify_log_status(verify_log["SQLID"], "Retrying")
-            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求正等待 API 服务器处理完成，拒绝完成验证请求。")
-            yield event.plain_result("验证失败，请等待服务端处理完成。\n请稍后重试提交验证。")
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求为未完成，拒绝完成验证请求。")
+            yield event.plain_result("验证失败，请加入房间而不是仅搜索。")
         elif verify_status == "Verified":
             # 额外检查用户的QQ号和FriendCode是否已存在于数据库
             existing_user = await self.check_user_exists_in_verify_data(user_qq_id)
@@ -736,8 +736,8 @@ class LinkAmongUs(Star):
                             logger.debug(f"[LinkAmongUs] 验证请求 ID {record['SQLID']} 已过期，正在处理。")
                     
                     # 发送结果报告
-                    logger.info(f"[LinkAmongUs] 清理非法验证请求完成，共处理 {len(results)} 条验证请求，其中 {expired_count} 条非法，已进行处理。")
-                    yield event.plain_result(f"清理完成，共处理 {len(results)} 条验证请求，其中 {expired_count} 条非法。")
+                    logger.info(f"[LinkAmongUs] 清理非法验证请求完成，共处理 {len(results)} 条验证请求，找到并处理了 {expired_count} 条非法验证请求。")
+                    yield event.plain_result(f"清理完成，共处理 {len(results)} 条验证请求，找到并处理了 {expired_count} 条非法验证请求。")
                     
         except Exception as e:
             logger.error(f"[LinkAmongUs] 清理非法验证请求时发生错误: {e}")
@@ -823,7 +823,7 @@ class LinkAmongUs(Star):
         
         if delete_success and update_success:
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 成功取消验证请求 {verify_code}。")
-            yield event.plain_result(f"已成功取消你于 {verify_log['CreateTime'].strftime('%Y-%m-%d %H:%M:%S')} 使用 {verify_log['UserFriendCode']} 创建的验证请求。")
+            yield event.plain_result(f"已成功取消你于 {verify_log['CreateTime'].strftime('%Y-%m-%d %H:%M:%S')} 使用账号 {verify_log['UserFriendCode']} 创建的验证请求。")
         else:
             logger.warning(f"[LinkAmongUs] 未能取消用户 {user_qq_id} 的验证请求。")
             yield event.plain_result("取消请求时发生意外错误，请联系管理员。")
@@ -845,7 +845,7 @@ class LinkAmongUs(Star):
         if user_data:
             # 格式化返回信息
             message = (
-                f"用户 {user_qq_id} 账号关联信息：\n"
+                f"你的账号关联信息：\n"
                 f"账号名称：{user_data['UserAmongUsName']}\n"
                 f"好友代码: {user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
                 f"账号平台：{user_data['UserTokenPlatform']}\n"
@@ -853,7 +853,7 @@ class LinkAmongUs(Star):
             )
             yield event.plain_result(message)
         else:
-            yield event.plain_result(f"用户 {user_qq_id} 尚未绑定 Among Us 账号。")
+            yield event.plain_result(f"你还未绑定 Among Us 账号。")
 
     @verify.command("help")
     async def verify_help(self, event: AstrMessageEvent):
