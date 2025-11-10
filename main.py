@@ -525,12 +525,11 @@ class LinkAmongUs(Star):
         # 检查用户是否有进行中的验证请求
         active_verify_request = await self.get_active_verify_request(user_qq_id)
         if active_verify_request:
-            # 根据CreateTime判断最新数据
-            latest_request = active_verify_request[0]  # 已经按CreateTime DESC排序，第一个就是最新的
-            status = latest_request["Status"]
-            create_time = latest_request["CreateTime"]
-            verify_code = latest_request["VerifyCode"]
-            friend_code = latest_request["UserFriendCode"]
+            # 直接使用返回的单个验证请求字典
+            status = active_verify_request["Status"]
+            create_time = active_verify_request["CreateTime"]
+            verify_code = active_verify_request["VerifyCode"]
+            friend_code = active_verify_request["UserFriendCode"]
             
             if status in ["Created", "Retrying"]:
                 server_name = self.api_config.get("APIConfig_ServerName")
