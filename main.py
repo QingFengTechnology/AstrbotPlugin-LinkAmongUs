@@ -334,23 +334,23 @@ class LinkAmongUs(Star):
                 logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 还未创建过验证请求。")
                 return None
 
-    async def get_active_verify_request(self, user_qq_id: str) -> Optional[list]:
-        """获取用户所有进行中的验证请求"""
-        logger.info(f"[LinkAmongUs] 正在获取用户 {user_qq_id} 所有进行中的验证请求。")
+    async def get_active_verify_request(self, user_qq_id: str) -> Optional[Dict[str, Any]]:
+        """获取用户最新的进行中的验证请求"""
+        logger.info(f"[LinkAmongUs] 正在获取用户 {user_qq_id} 最新的进行中的验证请求。")
         if not self.db_pool:
             logger.error("[LinkAmongUs] 未能获取活跃验证请求：数据库连接池未初始化。")
             return None
         async with self.db_pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    "SELECT * FROM VerifyLog WHERE UserQQID = %s AND Status IN ('Created', 'Retrying') ORDER BY CreateTime DESC",
+                    "SELECT * FROM VerifyLog WHERE UserQQID = %s AND Status IN ('Created', 'Retrying') ORDER BY CreateTime DESC LIMIT 1",
                     (user_qq_id,)
                 )
-                results = await cursor.fetchall()
-                if results:
+                result = await cursor.fetchone()
+                if result:
                     columns = [desc[0] for desc in cursor.description]
-                    logger.info(f"[LinkAmongUs] 已找到用户 {user_qq_id} 的活跃验证请求。")
-                    return [dict(zip(columns, row)) for row in results]
+                    logger.info(f"[LinkAmongUs] 已找到用户 {user_qq_id} 的最新活跃验证请求。")
+                    return dict(zip(columns, result))
                 logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求。")
                 return None
 
