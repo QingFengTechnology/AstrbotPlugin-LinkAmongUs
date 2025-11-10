@@ -579,14 +579,12 @@ class LinkAmongUs(Star):
         logger.debug(f"[LinkAmongUs] 启动用户 {user_qq_id} 的验证超时检查。")
         await asyncio.sleep(timeout)
         
-        # 重新读取验证日志数据
-        verify_log = await self.get_latest_verify_request(user_qq_id)
+        # 重新读取验证日志数据，只获取活跃的验证请求
+        verify_log = await self.get_active_verify_request(user_qq_id)
         if verify_log and verify_log["VerifyCode"] == verify_code:
-            # 检查状态是否为已完成状态
-            if verify_log["Status"] not in ["Verified", "Cancelled", "Expired"]:
-                # 更新状态为已过期
-                logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求已超时。")
-                await self.update_verify_log_status(verify_log["SQLID"], "Expired")
+            # 由于 get_active_verify_request 已经过滤了状态，直接更新为过期状态
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求已超时。")
+            await self.update_verify_log_status(verify_log["SQLID"], "Expired")
 
     @verify.command("finish")
     async def verify_finish(self, event: AstrMessageEvent):
@@ -599,17 +597,11 @@ class LinkAmongUs(Star):
             
         user_qq_id = event.get_sender_id()
         
-        # 检查用户是否有验证请求
-        verify_log = await self.get_latest_verify_request(user_qq_id)
+        # 检查用户是否有活跃的验证请求
+        verify_log = await self.get_active_verify_request(user_qq_id)
         if not verify_log:
-            logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有验证请求，拒绝完成验证请求。")
+            logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝完成验证请求。")
             yield event.plain_result("你还没有创建验证请求，或是该验证请求已过期。")
-            return
-
-        # 检查验证请求状态
-        if verify_log["Status"] not in ["Created", "Retrying"]:
-            logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 验证请求已失效，拒绝完成验证请求。")
-            yield event.plain_result("你的验证请求已失效，请重新创建验证请求。")
             return
 
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求完成验证。")
