@@ -48,7 +48,7 @@ class LinkAmongUs(Star):
     def _load_config(self):
         """加载插件配置"""
         # 加载白名单群组配置
-        self.whitelist_groups = self.config.get("WhitelightConfig_WhitelistGroups", [])
+        self.whitelist_groups = self.config.get("WhitelistConfig_WhitelistGroups", [])
         
         # 加载MySQL配置
         self.mysql_config = self.config.get("MySQLConfig", {})

@@ -1,9 +1,9 @@
 {
-  "WhitelightConfig": {
+  "WhitelistConfig": {
     "description": "白名单设置",
     "type": "object",
     "items": {
-      "WhitelightConfig_WhitelistGroups": {
+      "WhitelistConfig_WhitelistGroups": {
         "description": "群聊白名单",
         "type": "list",
         "default": [],
