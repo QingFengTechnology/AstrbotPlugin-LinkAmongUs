@@ -1,9 +1,15 @@
 {
-  "WhitelistGroups": {
-    "description": "群聊白名单",
-    "type": "list",
-    "default": [],
-    "hint": "仅在这些群聊中使用本插件，留空则在所有群聊中启用。"
+  "WhitelightConfig": {
+    "description": "白名单设置",
+    "type": "object",
+    "items": {
+      "WhitelightConfig_WhitelistGroups": {
+        "description": "群聊白名单",
+        "type": "list",
+        "default": [],
+        "hint": "仅在这些群聊中使用本插件，留空则在所有群聊中启用。"
+      }
+    }
   },
   "MySQLConfig": {
     "type": "object",
