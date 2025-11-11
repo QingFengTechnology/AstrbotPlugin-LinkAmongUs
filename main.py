@@ -62,7 +62,15 @@ class LinkAmongUs(Star):
                         result = await cursor.fetchone()
                         if result[0] == 0:
                             logger.debug(f"[LinkAmongUs] 数据表 {table_name} 不存在，正在创建...")
-                            await self._create_table(cursor, table_name)
+                            try:
+                                if table_name == "VerifyUserData":
+                                    await cursor.execute(VERIFY_USER_DATA)
+                                elif table_name == "VerifyLog":
+                                    await cursor.execute(VERIFY_LOG)
+                                logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
+                            except Exception as e:
+                                logger.error(f"[LinkAmongUs] 创建数据表 {table_name} 时发生意外错误: {e}")
+                                raise aiomysql.MySQLError("创建数据表时发生意外错误。")
                         else:
                             logger.debug(f"[LinkAmongUs] 数据表 {table_name} 已存在。")
             
@@ -72,19 +80,6 @@ class LinkAmongUs(Star):
             logger.info("[LinkAmongUs] 插件初始化完成。")
         except Exception as e:
             logger.error(f"[LinkAmongUs] 初始化时发生错误: {e}")
-            raise
-
-    async def _create_table(self, cursor, table_name):
-        """创建指定的数据表"""
-        try:
-            if table_name == "VerifyUserData":
-                await cursor.execute(VERIFY_USER_DATA)
-            elif table_name == "VerifyLog":
-                await cursor.execute(VERIFY_LOG)
-            
-            logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
-        except Exception as e:
-            logger.error(f"[LinkAmongUs] 创建数据表 {table_name} 时发生错误: {e}")
             raise
 
     async def terminate(self):
