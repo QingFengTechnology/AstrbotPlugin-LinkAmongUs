@@ -7,7 +7,6 @@ from datetime import datetime
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.api import logger
-from astrbot.api import AstrBotConfig
 
 HELP_MENU = """AstrbotPlugin-LinkAmongUs v1.4.1 By QingFeng
 /verify help - 显示此帮助菜单。
@@ -39,29 +38,17 @@ class LinkAmongUs(Star):
         super().__init__(context)
         self.db_pool = None
         self.session = None
+        # 加载配置
         self.config = config
         
-        # 加载配置
-        self._load_config()
+        self.whitelist_groups = self.config.get("WhitelistConfig_WhitelistGroups")
+        self.allow_private_message = self.config.get("WhitelistConfig_AllowPrivateMessage")
+        self.mysql_config = self.config.get("MySQLConfig")
+        self.api_config = self.config.get("APIConfig")
+        self.verify_config = self.config.get("VerifyConfig")
+        self.help_config = self.config.get("HelpConfig")
+        
         logger.debug("[LinkAmongUs] 插件已启动。")
-    
-    def _load_config(self):
-        """加载插件配置"""
-        # 加载白名单群组配置
-        self.whitelist_groups = self.config.get("WhitelistConfig_WhitelistGroups", [])
-        self.allow_private_message = self.config.get("WhitelistConfig_AllowPrivateMessage", False)
-        
-        # 加载MySQL配置
-        self.mysql_config = self.config.get("MySQLConfig", {})
-        
-        # 加载API配置
-        self.api_config = self.config.get("APIConfig", {})
-        
-        # 加载验证配置
-        self.verify_config = self.config.get("VerifyConfig", {})
-        
-        # 加载帮助配置
-        self.help_config = self.config.get("HelpConfig", {})
         
     async def initialize(self):
         """初始化插件"""
