@@ -9,6 +9,7 @@ from astrbot.api.star import Context, Star
 from astrbot.api import logger
 
 from .Variable.helpMenu import HELP_MENU
+from .Variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA
 
 class LinkAmongUs(Star):
     def __init__(self, context: Context, config: Dict[str, Any]):
@@ -77,36 +78,9 @@ class LinkAmongUs(Star):
         """创建指定的数据表"""
         try:
             if table_name == "VerifyUserData":
-                await cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS VerifyUserData (
-                        SQLID smallint NOT NULL AUTO_INCREMENT,
-                        LastUpdated datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        UserQQName varchar(40) DEFAULT NULL,
-                        UserQQID varchar(13) NOT NULL,
-                        UserAmongUsName varchar(11) DEFAULT NULL,
-                        UserFriendCode varchar(32) NOT NULL,
-                        UserPuid varchar(48) NOT NULL,
-                        UserHashedPuid varchar(11) NOT NULL,
-                        UserUdpPlatform varchar(32) NOT NULL,
-                        UserTokenPlatform varchar(32) NOT NULL,
-                        UserUdpIP varchar(32) NOT NULL,
-                        UserHttpIP varchar(128) NOT NULL,
-                        PRIMARY KEY (SQLID),
-                        UNIQUE KEY unique_user_data (UserQQID, UserFriendCode, UserPuid, UserHashedPuid)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-                """)
+                await cursor.execute(VERIFY_USER_DATA)
             elif table_name == "VerifyLog":
-                await cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS VerifyLog (
-                        SQLID smallint NOT NULL AUTO_INCREMENT,
-                        CreateTime datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        Status set('Created','Retrying','Verified','Cancelled','Expired') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-                        UserQQID varchar(13) NOT NULL,
-                        UserFriendCode varchar(32) NOT NULL,
-                        VerifyCode varchar(7) NOT NULL,
-                        PRIMARY KEY (SQLID)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-                """)
+                await cursor.execute(VERIFY_LOG)
             
             logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
         except Exception as e:
