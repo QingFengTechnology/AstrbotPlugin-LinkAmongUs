@@ -49,6 +49,7 @@ class LinkAmongUs(Star):
         """加载插件配置"""
         # 加载白名单群组配置
         self.whitelist_groups = self.config.get("WhitelistConfig_WhitelistGroups", [])
+        self.allow_private_message = self.config.get("WhitelistConfig_AllowPrivateMessage", False)
         
         # 加载MySQL配置
         self.mysql_config = self.config.get("MySQLConfig", {})
@@ -166,6 +167,17 @@ class LinkAmongUs(Star):
         """检查好友代码是否在黑名单中"""
         black_list = self.verify_config.get("VerifyConfig_BlackFriendCode", [])
         return friend_code in black_list
+
+    async def whitelist_check(self, event: AstrMessageEvent) -> bool:
+        """白名单检查"""
+        group_id = event.get_group_id()
+        if not group_id and not self.allow_private_message:
+            logger.debug("[LinkAmongUs] 不允许在私聊中使用该命令，取消该任务。")
+            return False
+        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
+            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+            return False
+        return True
 
     async def check_user_exists_in_verify_data(self, user_qq_id: str) -> Optional[Dict[str, Any]]:
         """检查用户QQ号是否已存在于数据库"""
@@ -467,9 +479,7 @@ class LinkAmongUs(Star):
     async def verify_create(self, event: AstrMessageEvent, friend_code: str):
         """创建一个验证请求"""
         # 检查是否在白名单群组中
-        group_id = event.get_group_id()
-        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
-            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+        if not await self.whitelist_check(event):
             return
 
         user_qq_id = event.get_sender_id()
@@ -582,9 +592,7 @@ class LinkAmongUs(Star):
     async def verify_finish(self, event: AstrMessageEvent):
         """完成一个验证请求"""
         # 检查是否在白名单群组中
-        group_id = event.get_group_id()
-        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
-            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+        if not await self.whitelist_check(event):
             return
             
         user_qq_id = event.get_sender_id()
@@ -748,9 +756,7 @@ class LinkAmongUs(Star):
     async def verify_query(self, event: AstrMessageEvent, query_value: str):
         """查询指定用户的账号关联信息"""
         # 检查是否在白名单群组中
-        group_id = event.get_group_id()
-        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
-            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+        if not await self.whitelist_check(event):
             return
             
         # 首先判断是否为FriendCode格式
@@ -791,9 +797,7 @@ class LinkAmongUs(Star):
     async def verify_cancel(self, event: AstrMessageEvent):
         """取消用户当前的验证请求"""
         # 检查是否在白名单群组中
-        group_id = event.get_group_id()
-        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
-            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+        if not await self.whitelist_check(event):
             return
             
         user_qq_id = event.get_sender_id()
@@ -832,9 +836,7 @@ class LinkAmongUs(Star):
     async def verify_info(self, event: AstrMessageEvent):
         """查询当前用户的账号关联信息"""
         # 检查是否在白名单群组中
-        group_id = event.get_group_id()
-        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
-            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+        if not await self.whitelist_check(event):
             return
             
         user_qq_id = event.get_sender_id()
@@ -859,8 +861,6 @@ class LinkAmongUs(Star):
     async def verify_help(self, event: AstrMessageEvent):
         """发送帮助菜单"""
         # 检查是否在白名单群组中
-        group_id = event.get_group_id()
-        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
-            logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+        if not await self.whitelist_check(event):
             return
         yield event.plain_result(HELP_MENU)

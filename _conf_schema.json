@@ -8,6 +8,12 @@
         "type": "list",
         "default": [],
         "hint": "仅在这些群聊中使用本插件，留空则在所有群聊中启用。"
+      },
+      "WhitelistConfig_AllowPrivateMessage": {
+        "description": "允许私聊使用",
+        "type": "bool",
+        "default": false,
+        "hint": "是否允许在私聊使用本插件。"
       }
     }
   },
