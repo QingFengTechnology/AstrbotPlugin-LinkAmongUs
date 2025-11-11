@@ -47,7 +47,7 @@ class LinkAmongUs(Star):
         self.api_config = self.config.get("APIConfig")
         self.verify_config = self.config.get("VerifyConfig")
         self.help_config = self.config.get("HelpConfig")
-        
+
         logger.debug("[LinkAmongUs] 插件已启动。")
         
     async def initialize(self):
@@ -55,7 +55,7 @@ class LinkAmongUs(Star):
         try:
             # 创建数据库连接池
             mysql_host = self.mysql_config.get("MySQLConfig_Address")
-            logger.debug(f"[LinkAmongUs] 尝试连接到MySQL服务器: {mysql_host}:{self.mysql_config.get('MySQLConfig_Port')}")
+            logger.debug(f"[LinkAmongUs] 正在尝试连接到MySQL服务器。")
                 
             self.db_pool = await aiomysql.create_pool(
                 host=mysql_host,
@@ -68,7 +68,26 @@ class LinkAmongUs(Star):
             )
             
             # 检查并创建必要的数据表
-            await self._check_and_create_tables()
+            logger.debug("[LinkAmongUs] 正在进行数据表完整性校验。")
+        
+            # 需要检查的数据表列表
+            required_tables = ["VerifyUserData", "VerifyLog"]
+        
+            async with self.db_pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    # 检查每个表是否存在
+                    for table_name in required_tables:
+                        await cursor.execute(
+                            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
+                            (table_name,)
+                        )
+                        result = await cursor.fetchone()
+                    
+                        if result[0] == 0:
+                            logger.debug(f"[LinkAmongUs] 数据表 {table_name} 不存在，正在创建...")
+                            await self._create_table(cursor, table_name)
+                        else:
+                            logger.debug(f"[LinkAmongUs] 数据表 {table_name} 已存在。")
             
             # 创建HTTP会话
             self.session = aiohttp.ClientSession()
@@ -77,29 +96,6 @@ class LinkAmongUs(Star):
         except Exception as e:
             logger.error(f"[LinkAmongUs] 初始化时发生错误: {e}")
             raise
-
-    async def _check_and_create_tables(self):
-        """检查并创建必要的数据表"""
-        logger.debug("[LinkAmongUs] 正在进行数据表完整性校验。")
-        
-        # 需要检查的数据表列表
-        required_tables = ["VerifyUserData", "VerifyLog"]
-        
-        async with self.db_pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                # 检查每个表是否存在
-                for table_name in required_tables:
-                    await cursor.execute(
-                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
-                        (table_name,)
-                    )
-                    result = await cursor.fetchone()
-                    
-                    if result[0] == 0:
-                        logger.debug(f"[LinkAmongUs] 数据表 {table_name} 不存在，正在创建...")
-                        await self._create_table(cursor, table_name)
-                    else:
-                        logger.debug(f"[LinkAmongUs] 数据表 {table_name} 已存在。")
 
     async def _create_table(self, cursor, table_name):
         """创建指定的数据表"""
