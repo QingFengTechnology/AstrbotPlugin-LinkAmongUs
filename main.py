@@ -8,30 +8,7 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.api import logger
 
-HELP_MENU = """AstrbotPlugin-LinkAmongUs v1.4.1 By QingFeng
-/verify help - 显示此帮助菜单。
-
-/verify create <FriendCode> - 创建一个验证请求。
-Args:
-  - FriendCode: 必填。你要关联的 Among Us 好友代码。
-
-/verify finish - 完成一个验证请求。
-- 由于服务器技术限制暂不支持自动完成，因此您必须要通过此命令主动完成验证请求。
-
-/verify cancel - 取消当前的验证请求。
-
-/verify info - 查询您的绑定信息。
-- 显示您当前绑定的 Among Us 角色名、好友代码和绑定时间。
-
-@PermissionType.ADMIN
-/verify query <QQID|FriendCode> - 查询指定用户的账号关联信息。
-Args:
-  - QQID|FriendCode: 必填。要查询的用户QQ号或好友代码（二选一）。
-
-@PermissionType.ADMIN
-/verfiy clean - 清理数据库中的非法验证请求。
-- 此操作将检查数据库中的验证日志表，将所有创建超过 10 分钟的但仍未结束的验证日志标记为过期。
-"""
+from .Variable.helpMenu import HELP_MENU
 
 class LinkAmongUs(Star):
     def __init__(self, context: Context, config: Dict[str, Any]):
