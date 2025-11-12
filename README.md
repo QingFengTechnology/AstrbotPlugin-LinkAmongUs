@@ -14,12 +14,12 @@
 
 在 Astrbot WebUI 插件页面点击`安装`按钮，选择`从链接安装`，复制粘贴本仓库 URL 并点击安装即可。
 
-> [!Warning]
-> 此插件仅保证可在 NapCat 作为 aiocqhttp 适配器时可用。
+> [!important]
+> 此插件仅适用于 aiocqhttp 平台，其余平台发来的请求插件将不会响应。
 
 ## 使用
 
-> [!important]
+> [!Note]
 > 插件安装后需要进行配置，否则无法正常工作。
 
 ### 帮助菜单
@@ -61,4 +61,5 @@
 ```
 /verify query <QQID|FriendCode>
 ```
-查询指定用户的账号关联信息。
+查询指定用户的账号关联信息。\
+其中`<QQID|FriendCode>`为用户 QQ 号或 Among Us 好友代码，该参数必填。
