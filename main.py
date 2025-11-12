@@ -403,6 +403,7 @@ class LinkAmongUs(Star):
         """插件命令列表"""
         pass
 
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("create")
     async def verify_create(self, event: AstrMessageEvent, friend_code: str):
         """创建一个验证请求"""
@@ -516,6 +517,7 @@ class LinkAmongUs(Star):
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求已超时。")
             await self.update_verify_log_status(verify_log["SQLID"], "Expired")
 
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("finish")
     async def verify_finish(self, event: AstrMessageEvent):
         """完成一个验证请求"""
@@ -622,6 +624,7 @@ class LinkAmongUs(Star):
             logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 验证请求状态 {verify_status} 非法，拒绝完成验证请求。")
             yield event.plain_result(f"验证失败，你的验证请求状态非法，请联系管理员。")
 
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.permission_type(filter.PermissionType.ADMIN)
     @verify.command("clean")
     async def verify_clean(self, event: AstrMessageEvent):
@@ -679,6 +682,7 @@ class LinkAmongUs(Star):
             logger.error(f"[LinkAmongUs] 清理非法验证请求时发生错误: {e}")
             yield event.plain_result("清理失败，发生意外错误，请查看日志。")
 
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.permission_type(filter.PermissionType.ADMIN)
     @verify.command("query")
     async def verify_query(self, event: AstrMessageEvent, query_value: str):
@@ -721,6 +725,7 @@ class LinkAmongUs(Star):
         else:
             yield event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
 
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("cancel")
     async def verify_cancel(self, event: AstrMessageEvent):
         """取消用户当前的验证请求"""
@@ -760,6 +765,7 @@ class LinkAmongUs(Star):
             logger.warning(f"[LinkAmongUs] 未能取消用户 {user_qq_id} 的验证请求。")
             yield event.plain_result("取消请求时发生意外错误，请联系管理员。")
 
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("info")
     async def verify_info(self, event: AstrMessageEvent):
         """查询当前用户的账号关联信息"""
@@ -785,6 +791,7 @@ class LinkAmongUs(Star):
         else:
             yield event.plain_result(f"你还未绑定 Among Us 账号。")
 
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("help")
     async def verify_help(self, event: AstrMessageEvent):
         """发送帮助菜单"""
