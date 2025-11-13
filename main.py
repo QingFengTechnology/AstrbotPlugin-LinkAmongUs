@@ -496,9 +496,25 @@ class LinkAmongUs(Star):
                 yield event.plain_result(error_message)
                 return
             
+            # 获取用户名称
+            # event.get_sender_name() 方法不可靠，其无法正常获取临时会话的用户名称。
+            logger.debug(f"[LinkAmongUs] 正在获取用户 {user_qq_id} 的名称。")
+            try: 
+                from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+                assert isinstance(event, AiocqhttpMessageEvent)
+                client = event.bot
+                stranger_info = await client.get_stranger_info(
+                    user_id=int(user_qq_id), no_cache=True
+                )
+                user_qq_name = stranger_info.get("nickname")
+                logger.debug("[LinkAmongUs] 成功获取用户名称。")
+            except Exception as e:
+                logger.warning(f"[LinkAmongUs] 获取用户 {user_qq_id} 的名称时发生意外错误，将使用备用方法获取名称：{e}")
+                user_qq_name = event.get_sender_name()
+            
             # 写入用户数据
             user_data = {
-                "UserQQName": event.get_sender_name(),
+                "UserQQName": user_qq_name,
                 "UserQQID": user_qq_id,
                 "UserAmongUsName": api_response.get("PlayerName"),
                 "UserFriendCode": api_response.get("FriendCode"),
