@@ -316,26 +316,6 @@ class LinkAmongUs(Star):
             logger.error(f"[LinkAmongUs] 写入验证日志时发生错误: {e}")
             return False
 
-    async def get_latest_verify_request(self, user_qq_id: str) -> Optional[Dict[str, Any]]:
-        """获取用户最新的验证请求"""
-        logger.info(f"[LinkAmongUs] 正在获取用户 {user_qq_id} 最新的验证请求。")
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 未能获取验证请求：数据库连接池未初始化。")
-            return None
-        async with self.db_pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    "SELECT * FROM VerifyLog WHERE UserQQID = %s ORDER BY CreateTime DESC LIMIT 1",
-                    (user_qq_id,)
-                )
-                result = await cursor.fetchone()
-                if result:
-                    columns = [desc[0] for desc in cursor.description]
-                    logger.debug(f"[LinkAmongUs] 已找到用户 {user_qq_id} 的最新验证请求。")
-                    return dict(zip(columns, result))
-                logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 还未创建过验证请求。")
-                return None
-
     async def get_active_verify_request(self, user_qq_id: str) -> Optional[Dict[str, Any]]:
         """获取用户最新的进行中的验证请求"""
         logger.info(f"[LinkAmongUs] 正在获取用户 {user_qq_id} 最新的进行中的验证请求。")
