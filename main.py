@@ -173,38 +173,6 @@ class LinkAmongUs(Star):
                 logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未绑定 Among Us 账号。")
                 return None
 
-    async def query_user_verify_info(self, identifier: str) -> Optional[Dict[str, Any]]:
-        """根据UserQQID或UserFriendCode查询用户的绑定信息（管理员专用）"""
-        logger.info(f"[LinkAmongUs] 管理员正在查询用户 {identifier} 的绑定信息。")
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 未能查询用户绑定信息：数据库连接池未初始化。")
-            return None
-        
-        async with self.db_pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                # 首先尝试按UserQQID查询
-                await cursor.execute(
-                    "SELECT UserQQID, UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserQQID = %s",
-                    (identifier,)
-                )
-                result = await cursor.fetchone()
-                
-                # 如果没有找到，再尝试按UserFriendCode查询
-                if not result:
-                    await cursor.execute(
-                        "SELECT UserQQID, UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserFriendCode = %s",
-                        (identifier,)
-                    )
-                    result = await cursor.fetchone()
-                
-                if result:
-                    columns = [desc[0] for desc in cursor.description]
-                    result_dict = dict(zip(columns, result))
-                    logger.info(f"[LinkAmongUs] 管理员成功查询到用户 {identifier} 的绑定信息。")
-                    return result_dict
-                logger.info(f"[LinkAmongUs] 未找到用户 {identifier} 的绑定信息。")
-                return None
-
     async def api_verify_request(self, method: str, api_key: str, **kwargs) -> Optional[Dict[str, Any]]:
         """整合的API验证请求函数，所有请求 API 的操作都应该使用此函数。
         
@@ -650,20 +618,41 @@ class LinkAmongUs(Star):
             return
             
         # 查询用户绑定信息
-        user_data = await self.query_user_verify_info(query_value)
-        if user_data:
-            operator_qq_id = event.get_sender_id()
-            logger.info(f"[LinkAmongUs] 管理员 {operator_qq_id} 查询了用户 {query_value} 的绑定信息。")
-            message = (
-                f"用户 {user_data['UserQQID']} 账号关联信息：\n"
-                f"账号名称：{user_data['UserAmongUsName']}\n"
-                f"好友代码: {user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
-                f"账号平台：{user_data['UserTokenPlatform']}\n"
-                f"关联时间: {user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-            yield event.plain_result(message)
-        else:
-            yield event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
+        logger.info(f"[LinkAmongUs] 正在查询用户 {query_value} 的绑定信息。")
+        if not self.db_pool:
+            logger.error("[LinkAmongUs] 未能查询用户绑定信息：数据库连接池未初始化。")
+            yield event.plain_result("查询失败，数据库连接池未初始化。")
+            return
+        
+        async with self.db_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT UserQQID, UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserQQID = %s",
+                    (query_value,)
+                )
+                result = await cursor.fetchone()
+                if not result:
+                    await cursor.execute(
+                        "SELECT UserQQID, UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserFriendCode = %s",
+                        (query_value,)
+                    )
+                    result = await cursor.fetchone()
+                
+                if result:
+                    columns = [desc[0] for desc in cursor.description]
+                    user_data = dict(zip(columns, result))
+                    logger.info(f"[LinkAmongUs] 成功查询到用户 {query_value} 的绑定信息。")
+                    message = (
+                        f"用户 {user_data['UserQQID']} 账号关联信息：\n"
+                        f"账号名称：{user_data['UserAmongUsName']}\n"
+                        f"好友代码: {user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
+                        f"账号平台：{user_data['UserTokenPlatform']}\n"
+                        f"关联时间: {user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
+                    yield event.plain_result(message)
+                else:
+                    logger.info(f"[LinkAmongUs] 未找到用户 {query_value} 的绑定信息。")
+                    yield event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("cancel")
