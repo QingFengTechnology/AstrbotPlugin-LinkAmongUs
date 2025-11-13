@@ -206,15 +206,12 @@ class LinkAmongUs(Star):
                 return None
 
     async def api_verify_request(self, method: str, api_key: str, **kwargs) -> Optional[Dict[str, Any]]:
-        """整合的API验证请求函数，支持创建、查询、删除验证请求
+        """整合的API验证请求函数，所有请求 API 的操作都应该使用此函数。
         
         Args:
-            method: HTTP方法 ('PUT', 'GET', 'DELETE')
-            api_key: API密钥
-            **kwargs: 根据method不同，GET和DELETE需要verify_code，PUT需要friend_code
-            
-        Returns:
-            根据HTTP方法返回不同结果：PUT和GET返回字典，DELETE返回布尔值
+            method: 请求使用的HTTP方法，选值为'PUT', 'GET', 'DELETE'。
+            api_key: 请求使用的API密钥。
+            **kwargs: 额外参数。method不同，提供的参数也不同：GET和DELETE需要verify_code；PUT需要friend_code。
         """
         api_endpoint = self.api_config.get("APIConfig_EndPoint")
         if not api_endpoint:
@@ -232,14 +229,14 @@ class LinkAmongUs(Star):
                 # 创建验证请求
                 friend_code = kwargs.get('friend_code')
                 if not friend_code:
-                    logger.error("[LinkAmongUs] 创建验证请求缺少friend_code参数")
+                    logger.error("[LinkAmongUs] 创建验证请求需要好友代码，但调用方法时未提供此参数。")
                     return None
                     
                 payload = {
                     "ApiKey": api_key,
                     "FriendCode": friend_code
                 }
-                logger.info(f"[LinkAmongUs] 将以 {friend_code} 身份向 API 发送创建验证请求。")
+                logger.info(f"[LinkAmongUs] 将使用账号 {friend_code} 向 API 发送创建验证请求。")
                 
                 async with self.session.put(url, json=payload, timeout=timeout) as response:
                     if response.status == 200:
@@ -259,10 +256,10 @@ class LinkAmongUs(Star):
                 # 查询验证状态
                 verify_code = kwargs.get('verify_code')
                 if not verify_code:
-                    logger.error("[LinkAmongUs] 查询验证状态缺少verify_code参数")
+                    logger.error("[LinkAmongUs] 查询验证状态需要房间代码，但调用方法时未提供此参数。")
                     return None
                     
-                logger.info(f"正在查询房间 {verify_code} 的验证状态。")
+                logger.info(f"[LinkAmongUs] 正在查询房间 {verify_code} 的验证状态。")
                 query_url = f"{url}?apikey={api_key}&verifycode={verify_code}"
                 
                 async with self.session.get(query_url, timeout=timeout) as response:
@@ -293,16 +290,16 @@ class LinkAmongUs(Star):
                     return response.status == 200
                     
             else:
-                logger.error(f"[LinkAmongUs] 不支持的HTTP方法: {method}")
+                logger.error(f"[LinkAmongUs] 程序尝试使用方法 {method} 向 API 进行请求，但函数尚不支持该请求方法。")
                 return None if method != 'DELETE' else False
                 
         except Exception as e:
-            logger.error(f"[LinkAmongUs] API请求({method})时发生错误: {e}")
+            logger.error(f"[LinkAmongUs] 程序尝试使用方法 {method} 向 API 进行请求时发生错误: {e}")
             return None if method != 'DELETE' else False
 
     async def insert_verify_log(self, user_qq_id: str, friend_code: str, verify_code: str) -> bool:
         """写入验证日志"""
-        logger.info(f"正在写入用户 {user_qq_id} 的验证日志。")
+        logger.info(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的验证日志。")
         if not self.db_pool:
             logger.error("[LinkAmongUs] 未能写入验证日志：数据库连接池未初始化。")
             return False
@@ -421,19 +418,16 @@ class LinkAmongUs(Star):
     @verify.command("create")
     async def verify_create(self, event: AstrMessageEvent, friend_code: str):
         """创建一个验证请求"""
-        # 检查是否在白名单群组中
         if not await self.whitelist_check(event):
             return
 
         user_qq_id = event.get_sender_id()
 
-        # 校验FriendCode格式：<字母>#<4位数字>，总字符数不超过25
-        if len(friend_code) > 25:
+        # 校验好友代码格式
+        if len(friendcode) < 9 and len(friend_code) > 25:
             logger.debug(f"[LinkAmongUs] 用户使用的好友代码长度超过限制，拒绝使用此好友代码创建验证请求。")
             yield event.plain_result("创建验证请求失败，此好友代码非法。")
             return
-            
-        # 检查格式是否符合 <字母>#<4位数字>
         import re
         pattern = r'^[A-Za-z]+#\d{4}$'
         if not re.match(pattern, friend_code):
@@ -447,7 +441,7 @@ class LinkAmongUs(Star):
             yield event.plain_result("创建验证请求失败，此好友代码非法。")
             return
 
-        # 检查用户QQ号是否已存在于数据库中
+        # 检查用户是否已关联账号
         existing_user = await self.check_user_exists_in_verify_data(user_qq_id)
         if existing_user:
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 已绑定 Among Us 账号 {existing_user['UserFriendCode']}，拒绝创建验证请求。")
@@ -456,8 +450,6 @@ class LinkAmongUs(Star):
                 f"若要更换，请联系管理员。"
             )
             return
-
-        # 检查好友代码是否已存在于数据库中
         existing_friend_code = await self.check_friend_code_exists_in_verify_data(friend_code)
         if existing_friend_code:
             logger.warning(f"[LinkAmongUs] 用户使用的好友代码已绑定 QQ号 {existing_friend_code['UserQQID']}，拒绝创建验证请求。")
@@ -470,12 +462,10 @@ class LinkAmongUs(Star):
         # 检查用户是否有进行中的验证请求
         active_verify_request = await self.get_active_verify_request(user_qq_id)
         if active_verify_request:
-            # 直接使用返回的单个验证请求字典
             status = active_verify_request["Status"]
             create_time = active_verify_request["CreateTime"]
             verify_code = active_verify_request["VerifyCode"]
             friend_code = active_verify_request["UserFriendCode"]
-            
             if status in ["Created", "Retrying"]:
                 server_name = self.api_config.get("APIConfig_ServerName")
                 logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 已有进行中的验证请求，拒绝重复创建验证请求。")
@@ -484,21 +474,21 @@ class LinkAmongUs(Star):
                     f"请先完成或取消现有的验证请求。"
                 )
                 return
+
+        # 创建验证请求
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用 Among Us 账号 {friend_code} 创建了一个验证请求。")
-        # 向API发送PUT请求创建验证请求
         api_key = self.api_config.get("APIConfig_Key")
         if not api_key:
             logger.warning("[LinkAmongUs] 创建验证请求失败，未获取到 API 密钥。")
             yield event.plain_result("创建验证请求失败，API密钥未配置，请联系管理员。")
             return
-
         api_response = await self.api_verify_request("PUT", api_key, friend_code=friend_code)
         if not api_response:
             logger.warning("[LinkAmongUs] 创建验证请求失败，API 请求失败。")
             yield event.plain_result("创建验证请求失败，请求API时出现异常，请联系管理员。")
             return
 
-        # 向VerifyLog表插入数据
+        # 写入验证日志
         verify_code = api_response["VerifyCode"]
         if not await self.insert_verify_log(user_qq_id, friend_code, verify_code):
             logger.warning("[LinkAmongUs] 创建验证请求失败，写入验证日志失败。")
@@ -509,7 +499,6 @@ class LinkAmongUs(Star):
         create_verify_config = self.verify_config.get("VerifyConfig_CreateVerfiyConfig", {})
         process_duration = create_verify_config.get("CreateVerfiyConfig_ProcessDuration")
         server_name = self.api_config.get("APIConfig_ServerName")
-        
         success_message = (
             f"成功创建验证请求，请在 {process_duration} 秒内使用账号 {friend_code} 加入 {server_name} 房间 {verify_code} 以完成验证。"
         )
@@ -523,11 +512,8 @@ class LinkAmongUs(Star):
         """检查验证是否超时"""
         logger.debug(f"[LinkAmongUs] 启动用户 {user_qq_id} 的验证超时检查。")
         await asyncio.sleep(timeout)
-        
-        # 重新读取验证日志数据，只获取活跃的验证请求
         verify_log = await self.get_active_verify_request(user_qq_id)
         if verify_log and verify_log["VerifyCode"] == verify_code:
-            # 由于 get_active_verify_request 已经过滤了状态，直接更新为过期状态
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求已超时。")
             await self.update_verify_log_status(verify_log["SQLID"], "Expired")
 
@@ -535,12 +521,10 @@ class LinkAmongUs(Star):
     @verify.command("finish")
     async def verify_finish(self, event: AstrMessageEvent):
         """完成一个验证请求"""
-        # 检查是否在白名单群组中
         if not await self.whitelist_check(event):
             return
             
         user_qq_id = event.get_sender_id()
-        
         # 检查用户是否有活跃的验证请求
         verify_log = await self.get_active_verify_request(user_qq_id)
         if not verify_log:
@@ -549,21 +533,18 @@ class LinkAmongUs(Star):
             return
 
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求完成验证。")
-
-        # 向API发送GET请求查询验证状态
+        # 查询验证状态
         api_key = self.api_config.get("APIConfig_Key")
         if not api_key:
             logger.warning("[LinkAmongUs] 完成验证请求失败，未获取到 API 密钥。")
             yield event.plain_result("检查验证失败，API密钥未配置，请联系管理员。")
             return
-
         api_response = await self.api_verify_request("GET", api_key, verify_code=verify_log["VerifyCode"])
         if not api_response:
             logger.warning("[LinkAmongUs] 完成验证请求失败，API 请求失败。")
             yield event.plain_result("检查验证失败，请求API时出现异常，请联系管理员。")
             return
-
-        verify_status = api_response.get("VerifyStatus", "")
+        verify_status = api_response.get("VerifyStatus")
         logger.debug(f"[LinkAmongUs] 已查询到用户 {user_qq_id} 的验证状态：{verify_status}。")
         
         # 根据API返回的状态处理
@@ -576,17 +557,12 @@ class LinkAmongUs(Star):
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求为未完成，拒绝完成验证请求。")
             yield event.plain_result("验证失败，请加入房间而不是仅搜索。")
         elif verify_status == "Verified":
-            # 额外检查用户的QQ号和FriendCode是否已存在于数据库
+            # 额外检查用户是否已关联账号
             existing_user = await self.check_user_exists_in_verify_data(user_qq_id)
             existing_friend_code = await self.check_friend_code_exists_in_verify_data(api_response.get("FriendCode", ""))
-            
-            # 如果用户QQ号或FriendCode已存在，则标记为Cancelled并提示用户
             if existing_user or existing_friend_code:
                 await self.api_verify_request("DELETE", api_key, verify_code=verify_log["VerifyCode"])
-                # 更新验证日志状态为Cancelled
                 await self.update_verify_log_status(verify_log["SQLID"], "Cancelled")
-                
-                # 构建错误消息
                 error_message = "验证失败，"
                 if existing_user:
                     error_message += f"你的QQ号已绑定 {existing_user['UserFriendCode']}。"
@@ -600,28 +576,23 @@ class LinkAmongUs(Star):
                 yield event.plain_result(error_message)
                 return
             
-            # 插入用户验证数据
+            # 写入用户数据
             user_data = {
                 "UserQQName": event.get_sender_name(),
                 "UserQQID": user_qq_id,
-                "UserAmongUsName": api_response.get("PlayerName", ""),
-                "UserFriendCode": api_response.get("FriendCode", ""),
-                "UserPuid": api_response.get("Puid", ""),
-                "UserHashedPuid": api_response.get("HashedPuid", ""),
-                "UserUdpPlatform": api_response.get("UdpPlatform", ""),
-                "UserTokenPlatform": api_response.get("TokenPlatform", ""),
-                "UserUdpIP": api_response.get("UdpIp", ""),
-                "UserHttpIP": api_response.get("HttpIp", "")
+                "UserAmongUsName": api_response.get("PlayerName"),
+                "UserFriendCode": api_response.get("FriendCode"),
+                "UserPuid": api_response.get("Puid"),
+                "UserHashedPuid": api_response.get("HashedPuid"),
+                "UserUdpPlatform": api_response.get("UdpPlatform"),
+                "UserTokenPlatform": api_response.get("TokenPlatform"),
+                "UserUdpIP": api_response.get("UdpIp"),
+                "UserHttpIP": api_response.get("HttpIp")
             }
             
             if await self.insert_verify_user_data(user_data):
-                # 向API发送DELETE请求删除验证请求
                 await self.api_verify_request("DELETE", api_key, verify_code=verify_log["VerifyCode"])
-                
-                # 更新验证日志状态
                 await self.update_verify_log_status(verify_log["SQLID"], "Verified")
-                
-                # 发送成功消息
                 success_message = (
                     f"验证成功！已将 {user_data['UserAmongUsName']}({user_data['UserFriendCode']}) 关联 QQ {user_data['UserQQID']}。"
                 )
@@ -643,18 +614,15 @@ class LinkAmongUs(Star):
     @verify.command("clean")
     async def verify_clean(self, event: AstrMessageEvent):
         """清理数据库中的非法验证请求"""
-        # 获取超时时间配置
-        create_verify_config = self.verify_config.get("VerifyConfig_CreateVerfiyConfig", {})
+        create_verify_config = self.verify_config.get("VerifyConfig_CreateVerfiyConfig")
         process_duration = create_verify_config.get("CreateVerfiyConfig_ProcessDuration")
         logger.info(f"[LinkAmongUs] 管理员请求了清理数据库中的非法验证请求。")
-        
         if not self.db_pool:
             logger.error("[LinkAmongUs] 清理数据库非法验证请求失败：数据库连接池未初始化。")
             yield event.plain_result("清理失败，数据库连接池未初始化。")
             return
 
         try:
-            # 获取当前时间
             current_time = datetime.now()
             
             # 查询所有状态为Created或Retrying的记录
@@ -664,31 +632,24 @@ class LinkAmongUs(Star):
                         "SELECT SQLID, CreateTime, Status, UserQQID, UserFriendCode FROM VerifyLog WHERE Status IN ('Created', 'Retrying')"
                     )
                     results = await cursor.fetchall()
-                    
                     if not results:
                         logger.info("[LinkAmongUs] 未找到非法验证状态请求。")
                         yield event.plain_result("没有找到需要清理的验证请求。")
                         return
-                    
                     expired_count = 0
                     columns = [desc[0] for desc in cursor.description]
                     logger.debug(f"[LinkAmongUs] 已找到 {len(results)} 条待检查的验证请求。")
-                    
+
                     # 检查每条记录是否超时
                     for row in results:
                         record = dict(zip(columns, row))
                         create_time = record["CreateTime"]
-                        
-                        # 计算时间差（秒）
                         time_diff = (current_time - create_time).total_seconds()
-                        
-                        # 如果超时，更新状态为Expired
                         if time_diff > process_duration:
                             await self.update_verify_log_status(record["SQLID"], "Expired")
                             expired_count += 1
                             logger.debug(f"[LinkAmongUs] 验证请求 ID {record['SQLID']} 已过期，正在处理。")
                     
-                    # 发送结果报告
                     logger.info(f"[LinkAmongUs] 清理非法验证请求完成，共处理 {len(results)} 条验证请求，找到并处理了 {expired_count} 条非法验证请求。")
                     yield event.plain_result(f"清理完成，共处理 {len(results)} 条验证请求，找到并处理了 {expired_count} 条非法验证请求。")
                     
@@ -701,19 +662,14 @@ class LinkAmongUs(Star):
     @verify.command("query")
     async def verify_query(self, event: AstrMessageEvent, query_value: str):
         """查询指定用户的账号关联信息"""
-        # 检查是否在白名单群组中
         if not await self.whitelist_check(event):
             return
             
-        # 首先判断是否为FriendCode格式
+        # 参数格式校验
         import re
         friend_code_pattern = r'^[A-Za-z]+#\d{4}$'
         is_friend_code = len(query_value) <= 25 and re.match(friend_code_pattern, query_value)
-        
-        # 如果不是FriendCode，检查是否为QQ号（5-13位纯数字）
         is_qq_number = query_value.isdigit() and 5 <= len(query_value) <= 13
-        
-        # 如果既不是FriendCode也不是QQ号，则返回错误
         if not is_friend_code and not is_qq_number:
             logger.debug(f"[LinkAmongUs] 管理员查询的用户非法，拒绝使用此参数查询用户信息。")
             yield event.plain_result("查询参数非法。")
@@ -721,13 +677,9 @@ class LinkAmongUs(Star):
             
         # 查询用户绑定信息
         user_data = await self.query_user_verify_info(query_value)
-        
         if user_data:
-            # 记录管理员操作日志
             operator_qq_id = event.get_sender_id()
             logger.info(f"[LinkAmongUs] 管理员 {operator_qq_id} 查询了用户 {query_value} 的绑定信息。")
-            
-            # 格式化返回信息
             message = (
                 f"用户 {user_data['UserQQID']} 账号关联信息：\n"
                 f"账号名称：{user_data['UserAmongUsName']}\n"
@@ -743,13 +695,11 @@ class LinkAmongUs(Star):
     @verify.command("cancel")
     async def verify_cancel(self, event: AstrMessageEvent):
         """取消用户当前的验证请求"""
-        # 检查是否在白名单群组中
         if not await self.whitelist_check(event):
             return
-            
-        user_qq_id = event.get_sender_id()
         
-        # 检查用户是否有活跃的验证请求
+        # 检查是否有活跃的验证请求
+        user_qq_id = event.get_sender_id()
         verify_log = await self.get_active_verify_request(user_qq_id)
         if not verify_log:
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝取消验证请求。")
@@ -757,21 +707,14 @@ class LinkAmongUs(Star):
             return
 
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求取消验证请求。")
-
-        # 获取API密钥
         api_key = self.api_config.get("APIConfig_Key")
         if not api_key:
             logger.warning("[LinkAmongUs] 取消验证请求失败，未获取到 API 密钥。")
             yield event.plain_result("取消验证请求失败，API密钥未配置，请联系管理员。")
             return
-
-        # 向API发送DELETE请求删除验证请求
         verify_code = verify_log["VerifyCode"]
         delete_success = await self.api_verify_request("DELETE", api_key, verify_code=verify_code)
-        
-        # 更新验证日志状态为Cancelled
         update_success = await self.update_verify_log_status(verify_log["SQLID"], "Cancelled")
-        
         if delete_success and update_success:
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 成功取消验证请求 {verify_code}。")
             yield event.plain_result(f"已成功取消你于 {verify_log['CreateTime'].strftime('%Y-%m-%d %H:%M:%S')} 使用账号 {verify_log['UserFriendCode']} 创建的验证请求。")
@@ -783,17 +726,12 @@ class LinkAmongUs(Star):
     @verify.command("info")
     async def verify_info(self, event: AstrMessageEvent):
         """查询当前用户的账号关联信息"""
-        # 检查是否在白名单群组中
         if not await self.whitelist_check(event):
             return
             
         user_qq_id = event.get_sender_id()
-        
-        # 查询用户绑定信息
         user_data = await self.get_user_verify_info(user_qq_id)
-        
         if user_data:
-            # 格式化返回信息
             message = (
                 f"你的账号关联信息：\n"
                 f"账号名称：{user_data['UserAmongUsName']}\n"
@@ -809,7 +747,6 @@ class LinkAmongUs(Star):
     @verify.command("help")
     async def verify_help(self, event: AstrMessageEvent):
         """发送帮助菜单"""
-        # 检查是否在白名单群组中
         if not await self.whitelist_check(event):
             return
         yield event.plain_result(HELP_MENU)
