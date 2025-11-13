@@ -99,7 +99,7 @@ class LinkAmongUs(Star):
     async def whitelist_check(self, event: AstrMessageEvent) -> bool:
         """白名单检查"""
         group_id = event.get_group_id()
-        if not group_id and not self.allow_private_message:
+        if group_id == "" and not self.allow_private_message:
             logger.debug("[LinkAmongUs] 不允许在私聊中使用该命令，取消该任务。")
             return False
         if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
