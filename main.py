@@ -331,7 +331,7 @@ class LinkAmongUs(Star):
         user_qq_id = event.get_sender_id()
 
         # 校验好友代码格式
-        if len(friendcode) < 9 and len(friend_code) > 25:
+        if len(friend_code) < 9 and len(friend_code) > 25:
             logger.debug(f"[LinkAmongUs] 用户使用的好友代码长度超过限制，拒绝使用此好友代码创建验证请求。")
             yield event.plain_result("创建验证请求失败，此好友代码非法。")
             return
