@@ -205,37 +205,100 @@ class LinkAmongUs(Star):
                 logger.info(f"[LinkAmongUs] 未找到用户 {identifier} 的绑定信息。")
                 return None
 
-    async def create_verify_request(self, api_key: str, friend_code: str) -> Optional[Dict[str, Any]]:
-        """向 API 发送创建验证请求"""
+    async def api_verify_request(self, method: str, api_key: str, **kwargs) -> Optional[Dict[str, Any]]:
+        """整合的API验证请求函数，支持创建、查询、删除验证请求
+        
+        Args:
+            method: HTTP方法 ('PUT', 'GET', 'DELETE')
+            api_key: API密钥
+            **kwargs: 根据method不同，GET和DELETE需要verify_code，PUT需要friend_code
+            
+        Returns:
+            根据HTTP方法返回不同结果：PUT和GET返回字典，DELETE返回布尔值
+        """
         api_endpoint = self.api_config.get("APIConfig_EndPoint")
         if not api_endpoint:
             logger.error("[LinkAmongUs] 未获取到有效的 API 端点，请检查你是否已在设置中配置。")
-            return None
+            return None if method != 'DELETE' else False
+            
         url = f"{api_endpoint}/api/verify"
-        payload = {
-            "ApiKey": api_key,
-            "FriendCode": friend_code
-        }
-        logger.info(f"[LinkAmongUs] 将以 {friend_code} 身份向 API 发送创建验证请求。")
+        
+        # 获取超时配置
+        create_verify_config = self.verify_config.get("VerifyConfig_CreateVerfiyConfig", {})
+        timeout = create_verify_config.get("CreateVerfiyConfig_ApiTimeout")
+        
         try:
-            create_verify_config = self.verify_config.get("VerifyConfig_CreateVerfiyConfig", {})
-            timeout = create_verify_config.get("CreateVerfiyConfig_ApiTimeout")
-            async with self.session.put(url, json=payload, timeout=timeout) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    # 检查必要的字段是否存在
-                    required_fields = ["VerifyStatus", "VerifyCode", "FriendCode", "ExpiresAt"]
-                    if all(field in data for field in required_fields):
-                        logger.info(f"[LinkAmongUs] 成功创建验证请求，验证码: {data['VerifyCode']}。")
-                        return data
+            if method.upper() == 'PUT':
+                # 创建验证请求
+                friend_code = kwargs.get('friend_code')
+                if not friend_code:
+                    logger.error("[LinkAmongUs] 创建验证请求缺少friend_code参数")
+                    return None
+                    
+                payload = {
+                    "ApiKey": api_key,
+                    "FriendCode": friend_code
+                }
+                logger.info(f"[LinkAmongUs] 将以 {friend_code} 身份向 API 发送创建验证请求。")
+                
+                async with self.session.put(url, json=payload, timeout=timeout) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        # 检查必要的字段是否存在
+                        required_fields = ["VerifyStatus", "VerifyCode", "FriendCode", "ExpiresAt"]
+                        if all(field in data for field in required_fields):
+                            logger.info(f"[LinkAmongUs] 成功创建验证请求，验证码: {data['VerifyCode']}。")
+                            return data
+                        else:
+                            logger.error(f"[LinkAmongUs] API 响应似乎不正确: {data}")
                     else:
-                        logger.error(f"[LinkAmongUs] API 响应似乎不正确: {data}")
-                else:
-                    logger.error(f"[LinkAmongUs] API 请求失败，状态码: {response.status}。")
-                return None
+                        logger.error(f"[LinkAmongUs] API 请求失败，状态码: {response.status}。")
+                    return None
+                    
+            elif method.upper() == 'GET':
+                # 查询验证状态
+                verify_code = kwargs.get('verify_code')
+                if not verify_code:
+                    logger.error("[LinkAmongUs] 查询验证状态缺少verify_code参数")
+                    return None
+                    
+                logger.info(f"正在查询房间 {verify_code} 的验证状态。")
+                query_url = f"{url}?apikey={api_key}&verifycode={verify_code}"
+                
+                async with self.session.get(query_url, timeout=timeout) as response:
+                    if response.status == 200:
+                        logger.info(f"[LinkAmongUs] 成功查询房间 {verify_code} 的验证状态。")
+                        return await response.json()
+                    logger.error(f"[LinkAmongUs] 查询房间 {verify_code} 验证状态失败，API 返回状态码 {response.status}。")
+                    return None
+                    
+            elif method.upper() == 'DELETE':
+                # 删除验证请求
+                verify_code = kwargs.get('verify_code')
+                if not verify_code:
+                    logger.error("[LinkAmongUs] 删除验证请求缺少verify_code参数")
+                    return False
+                    
+                logger.debug(f"[LinkAmongUs] 准备删除房间 {verify_code} 的验证请求。")
+                payload = {
+                    "apikey": api_key,
+                    "verifycode": verify_code
+                }
+                
+                async with self.session.delete(url, json=payload, timeout=timeout) as response:
+                    if response.status == 200:
+                        logger.debug(f"[LinkAmongUs] 成功删除房间 {verify_code} 的验证请求。")
+                    else:
+                        logger.warning(f"[LinkAmongUs] 验证请求删除失败，状态码: {response.status}, 验证码: {verify_code}")
+                    return response.status == 200
+                    
+            else:
+                logger.error(f"[LinkAmongUs] 不支持的HTTP方法: {method}")
+                return None if method != 'DELETE' else False
+                
         except Exception as e:
-            logger.error(f"[LinkAmongUs] 创建验证请求时发生错误: {e}")
-            return None
+            logger.error(f"[LinkAmongUs] API请求({method})时发生错误: {e}")
+            return None if method != 'DELETE' else False
 
     async def insert_verify_log(self, user_qq_id: str, friend_code: str, verify_code: str) -> bool:
         """写入验证日志"""
@@ -316,28 +379,6 @@ class LinkAmongUs(Star):
             logger.error(f"[LinkAmongUs] 更新验证日志状态时发生错误: {e}")
             return False
 
-    async def query_verify_status(self, api_key: str, verify_code: str) -> Optional[Dict[str, Any]]:
-        """向 API 查询验证请求状态"""
-        api_endpoint = self.api_config.get("APIConfig_EndPoint")
-        if not api_endpoint:
-            logger.error("[LinkAmongUs] 未获取到有效的 API 端点，请检查你是否已在设置中配置。")
-            return None
-        logger.info(f"正在查询房间 {verify_code} 的验证状态。")
-        url = f"{api_endpoint}/api/verify?apikey={api_key}&verifycode={verify_code}"
-        
-        try:
-            create_verify_config = self.verify_config.get("VerifyConfig_CreateVerfiyConfig", {})
-            timeout = create_verify_config.get("CreateVerfiyConfig_ApiTimeout")
-            async with self.session.get(url, timeout=timeout) as response:
-                if response.status == 200:
-                    logger.info(f"[LinkAmongUs] 成功查询房间 {verify_code} 的验证状态。")
-                    return await response.json()
-                logger.error(f"[LinkAmongUs] 查询房间 {verify_code} 验证状态失败，API 返回状态码 {response.status}。")
-                return None
-        except Exception as e:
-            logger.error(f"[LinkAmongUs] 查询验证状态时发生错误: {e}")
-            return None
-
     async def insert_verify_user_data(self, user_data: Dict[str, Any]) -> bool:
         """写入用户身份数据"""
         logger.info(f"[LinkAmongUs] 准备写入用户 {user_data.get('UserQQID')}({user_data.get('UserFriendCode')}) 的身份数据。")
@@ -369,33 +410,6 @@ class LinkAmongUs(Star):
                     return True
         except Exception as e:
             logger.error(f"[LinkAmongUs] 插入用户身份数据时发生错误: {e}")
-            return False
-
-    async def delete_verify_request(self, api_key: str, verify_code: str) -> bool:
-        """向 API 删除验证请求"""
-        logger.debug(f"[LinkAmongUs] 准备删除房间 {verify_code} 的验证请求。")
-        api_endpoint = self.api_config.get("APIConfig_EndPoint")
-        if not api_endpoint:
-            logger.error("[LinkAmongUs] 未获取到有效的 API 端点，请检查你是否已在设置中配置。")
-            return False
-            
-        url = f"{api_endpoint}/api/verify"
-        payload = {
-            "apikey": api_key,
-            "verifycode": verify_code
-        }
-        
-        try:
-            create_verify_config = self.verify_config.get("VerifyConfig_CreateVerfiyConfig", {})
-            timeout = create_verify_config.get("CreateVerfiyConfig_ApiTimeout")
-            async with self.session.delete(url, json=payload, timeout=timeout) as response:
-                if response.status == 200:
-                    logger.debug(f"[LinkAmongUs] 成功删除房间 {verify_code} 的验证请求。")
-                else:
-                    logger.warning(f"[LinkAmongUs] 验证请求删除失败，状态码: {response.status}, 验证码: {verify_code}")
-                return response.status == 200
-        except Exception as e:
-            logger.error(f"[LinkAmongUs] 删除验证请求时发生错误: {e}")
             return False
 
     @filter.command_group("verify")
@@ -478,7 +492,7 @@ class LinkAmongUs(Star):
             yield event.plain_result("创建验证请求失败，API密钥未配置，请联系管理员。")
             return
 
-        api_response = await self.create_verify_request(api_key, friend_code)
+        api_response = await self.api_verify_request("PUT", api_key, friend_code=friend_code)
         if not api_response:
             logger.warning("[LinkAmongUs] 创建验证请求失败，API 请求失败。")
             yield event.plain_result("创建验证请求失败，请求API时出现异常，请联系管理员。")
@@ -543,7 +557,7 @@ class LinkAmongUs(Star):
             yield event.plain_result("检查验证失败，API密钥未配置，请联系管理员。")
             return
 
-        api_response = await self.query_verify_status(api_key, verify_log["VerifyCode"])
+        api_response = await self.api_verify_request("GET", api_key, verify_code=verify_log["VerifyCode"])
         if not api_response:
             logger.warning("[LinkAmongUs] 完成验证请求失败，API 请求失败。")
             yield event.plain_result("检查验证失败，请求API时出现异常，请联系管理员。")
@@ -568,7 +582,7 @@ class LinkAmongUs(Star):
             
             # 如果用户QQ号或FriendCode已存在，则标记为Cancelled并提示用户
             if existing_user or existing_friend_code:
-                await self.delete_verify_request(api_key, verify_log["VerifyCode"])
+                await self.api_verify_request("DELETE", api_key, verify_code=verify_log["VerifyCode"])
                 # 更新验证日志状态为Cancelled
                 await self.update_verify_log_status(verify_log["SQLID"], "Cancelled")
                 
@@ -602,7 +616,7 @@ class LinkAmongUs(Star):
             
             if await self.insert_verify_user_data(user_data):
                 # 向API发送DELETE请求删除验证请求
-                await self.delete_verify_request(api_key, verify_log["VerifyCode"])
+                await self.api_verify_request("DELETE", api_key, verify_code=verify_log["VerifyCode"])
                 
                 # 更新验证日志状态
                 await self.update_verify_log_status(verify_log["SQLID"], "Verified")
@@ -753,7 +767,7 @@ class LinkAmongUs(Star):
 
         # 向API发送DELETE请求删除验证请求
         verify_code = verify_log["VerifyCode"]
-        delete_success = await self.delete_verify_request(api_key, verify_code)
+        delete_success = await self.api_verify_request("DELETE", api_key, verify_code=verify_code)
         
         # 更新验证日志状态为Cancelled
         update_success = await self.update_verify_log_status(verify_log["SQLID"], "Cancelled")
