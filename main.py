@@ -6,13 +6,13 @@ from datetime import datetime
 
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
-from astrbot.api import logger
+from astrbot.api import logger, AstrBotConfig
 
 from .Variable.helpMenu import HELP_MENU
 from .Variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA
 
 class LinkAmongUs(Star):
-    def __init__(self, context: Context, config: Dict[str, Any]):
+    def __init__(self, context: Context, config: AstrBotConfig): # AstrBotConfig 继承自 Dict，拥有字典的所有方法。
         super().__init__(context)
         self.db_pool = None
         self.session = None
