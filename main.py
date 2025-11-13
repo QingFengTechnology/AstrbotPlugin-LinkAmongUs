@@ -297,25 +297,6 @@ class LinkAmongUs(Star):
             logger.error(f"[LinkAmongUs] 程序尝试使用方法 {method} 向 API 进行请求时发生错误: {e}")
             return None if method != 'DELETE' else False
 
-    async def insert_verify_log(self, user_qq_id: str, friend_code: str, verify_code: str) -> bool:
-        """写入验证日志"""
-        logger.info(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的验证日志。")
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 未能写入验证日志：数据库连接池未初始化。")
-            return False
-        try:
-            async with self.db_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(
-                        "INSERT INTO VerifyLog (Status, UserQQID, UserFriendCode, VerifyCode) VALUES (%s, %s, %s, %s)",
-                        ("Created", user_qq_id, friend_code, verify_code)
-                    )
-                    logger.info(f"[LinkAmongUs] 成功写入用户 {user_qq_id} 的验证日志。")
-                    return True
-        except Exception as e:
-            logger.error(f"[LinkAmongUs] 写入验证日志时发生错误: {e}")
-            return False
-
     async def get_active_verify_request(self, user_qq_id: str) -> Optional[Dict[str, Any]]:
         """获取用户最新的进行中的验证请求"""
         logger.info(f"[LinkAmongUs] 正在获取用户 {user_qq_id} 最新的进行中的验证请求。")
@@ -470,8 +451,21 @@ class LinkAmongUs(Star):
 
         # 写入验证日志
         verify_code = api_response["VerifyCode"]
-        if not await self.insert_verify_log(user_qq_id, friend_code, verify_code):
-            logger.warning("[LinkAmongUs] 创建验证请求失败，写入验证日志失败。")
+        logger.info(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的验证日志。")
+        if not self.db_pool:
+            logger.error("[LinkAmongUs] 未能写入验证日志：数据库连接池未初始化。")
+            yield event.plain_result("创建验证请求失败，数据库连接池未初始化，请联系管理员。")
+            return
+        try:
+            async with self.db_pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        "INSERT INTO VerifyLog (Status, UserQQID, UserFriendCode, VerifyCode) VALUES (%s, %s, %s, %s)",
+                        ("Created", user_qq_id, friend_code, verify_code)
+                    )
+                    logger.info(f"[LinkAmongUs] 成功写入用户 {user_qq_id} 的验证日志。")
+        except Exception as e:
+            logger.error(f"[LinkAmongUs] 写入验证日志时发生错误: {e}")
             yield event.plain_result("创建验证请求失败，数据库写入异常，请联系管理员。")
             return
 
