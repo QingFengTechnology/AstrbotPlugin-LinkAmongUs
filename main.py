@@ -102,7 +102,7 @@ class LinkAmongUs(Star):
         if group_id == "" and not self.allow_private_message:
             logger.debug("[LinkAmongUs] 不允许在私聊中使用该命令，取消该任务。")
             return False
-        if self.whitelist_groups and str(group_id) not in self.whitelist_groups:
+        if group_id != "" and self.whitelist_groups and str(group_id) not in self.whitelist_groups:
             logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
             return False
         return True
