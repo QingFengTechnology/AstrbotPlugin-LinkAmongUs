@@ -151,28 +151,6 @@ class LinkAmongUs(Star):
                 logger.info(f"[LinkAmongUs] 好友代码 {friend_code} 尚未关联 QQ 号。")
                 return None
 
-    async def get_user_verify_info(self, user_qq_id: str) -> Optional[Dict[str, Any]]:
-        """获取用户的绑定信息"""
-        logger.info(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的绑定信息。")
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 未能查询用户绑定信息：数据库连接池未初始化。")
-            return None
-        
-        async with self.db_pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    "SELECT UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserQQID = %s",
-                    (user_qq_id,)
-                )
-                result = await cursor.fetchone()
-                if result:
-                    columns = [desc[0] for desc in cursor.description]
-                    result_dict = dict(zip(columns, result))
-                    logger.info(f"[LinkAmongUs] 成功查询到用户 {user_qq_id} 的绑定信息。")
-                    return result_dict
-                logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未绑定 Among Us 账号。")
-                return None
-
     async def api_verify_request(self, method: str, api_key: str, **kwargs) -> Optional[Dict[str, Any]]:
         """整合的API验证请求函数，所有请求 API 的操作都应该使用此函数。
         
@@ -693,18 +671,33 @@ class LinkAmongUs(Star):
             return
             
         user_qq_id = event.get_sender_id()
-        user_data = await self.get_user_verify_info(user_qq_id)
-        if user_data:
-            message = (
-                f"你的账号关联信息：\n"
-                f"账号名称：{user_data['UserAmongUsName']}\n"
-                f"好友代码：{user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
-                f"账号平台：{user_data['UserTokenPlatform']}\n"
-                f"关联时间：{user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-            yield event.plain_result(message)
-        else:
-            yield event.plain_result(f"你还未绑定 Among Us 账号。")
+        logger.info(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的绑定信息。")
+        if not self.db_pool:
+            logger.error("[LinkAmongUs] 未能查询用户绑定信息：数据库连接池未初始化。")
+            yield event.plain_result("查询失败，数据库连接池未初始化。")
+            return
+        async with self.db_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserQQID = %s",
+                    (user_qq_id,)
+                )
+                result = await cursor.fetchone()
+                if result:
+                    columns = [desc[0] for desc in cursor.description]
+                    user_data = dict(zip(columns, result))
+                    logger.info(f"[LinkAmongUs] 成功查询到用户 {user_qq_id} 的绑定信息。")
+                    message = (
+                        f"你的账号关联信息：\n"
+                        f"账号名称：{user_data['UserAmongUsName']}\n"
+                        f"好友代码：{user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
+                        f"账号平台：{user_data['UserTokenPlatform']}\n"
+                        f"关联时间：{user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
+                    yield event.plain_result(message)
+                else:
+                    logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未绑定 Among Us 账号。")
+                    yield event.plain_result(f"你还未绑定 Among Us 账号。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("help")
