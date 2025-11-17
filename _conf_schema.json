@@ -127,16 +127,16 @@
       },
       "VerifyConfig_CreateVerfiyConfig": {
         "type": "object",
-        "description": "验证创建设置",
+        "description": "创建验证设置",
         "hint": "/verify create命令的相关配置。",
         "items": {
-          "CreateVerfiyConfig_ApiTimeout": {
+          "CreateVerifyConfig_ApiTimeout": {
             "type": "int",
             "description": "请求超时时间",
             "hint": "向API发送请求后多少秒未得到响应就直接认定超时，设定过长可能会影响用户体验。该选项仅可填写1-600秒，出现意外值将回滚为6秒。",
             "default": 6
           },
-          "CreateVerfiyConfig_ProcessDuration": {
+          "CreateVerifyConfig_ProcessDuration": {
             "type": "int",
             "description": "验证超时时间",
             "hint": "向API发送请求多少秒后主动标记为验证超时并发送销毁验证请求。由于Nmpostor限制，该选项仅可填写1-600秒，出现意外值将回滚为600秒。",
@@ -144,16 +144,16 @@
           }
         }
       },
-      "VerifyConfig_VerifyFinishConfig": {
+      "VerifyConfig_FinishVerifyConfig": {
         "type": "object",
-        "description": "验证完成设置",
+        "description": "完成验证设置",
         "hint": "/verify finish命令的相关配置。",
-        "invisible": true,
         "items": {
-          "VerifyFinishConfig_AutoCheck": {
+          "FinishVerifyConfig_AutoCheck": {
             "type": "bool",
             "description": "在超时前自动完成验证",
             "hint": "在超时前1分钟自动尝试完成验证，此功能可防止某些用户忘记使用命令的问题。",
+            "invisible": true,
             "default": true
           }
         }
