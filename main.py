@@ -518,7 +518,7 @@ class LinkAmongUs(Star):
         elif verify_status == "Verified":
             # 额外检查用户是否已关联账号
             existing_user = await self.check_user_exists_in_verify_data(user_qq_id)
-            existing_friend_code = await self.check_friend_code_exists_in_verify_data(api_response.get("FriendCode", ""))
+            existing_friend_code = await self.check_friend_code_exists_in_verify_data(api_response.get("FriendCode"))
             if existing_user or existing_friend_code:
                 await self.api_verify_request("DELETE", api_key, verify_code=verify_log["VerifyCode"])
                 await self.update_verify_log_status(verify_log["SQLID"], "Cancelled")
