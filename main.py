@@ -142,7 +142,7 @@ class LinkAmongUs(Star):
         
         # 轮询踢出未验证用户
         if self.KickNewMemberConfig_KickNewMemberIfNotVerify != 0:
-            asyncio.create_task(self.scheduled_kick_unverified_users())
+            asyncio.create_task(self.scheduled_kick_unverified_users(AstrMessageEvent))
         
         logger.info("[LinkAmongUs] 插件初始化完成。")
 
@@ -1006,6 +1006,9 @@ class LinkAmongUs(Star):
                 logger.debug("[LinkAmongUs] 正在准备未验证成员超时检查。")
                 if not self.db_pool:
                     logger.error("[LinkAmongUs] 未能进行未验证成员超时检查，数据库连接池未初始化。")
+                    polling_interval = self.KickNewMemberConfig_PollingInterval
+                    await asyncio.sleep(polling_interval * 3600)
+                    continue
 
                 # 查找需要踢出的成员
                 current_time = datetime.now()
@@ -1019,37 +1022,37 @@ class LinkAmongUs(Star):
                         
                         if not users_to_kick:
                             logger.debug("[LinkAmongUs] 没有需要踢出的未验证成员。")
-                            continue
-                        logger.debug(f"[LinkAmongUs] 已找到 {len(users_to_kick)} 个需要踢出的未验证成员。")
+                        else:
+                            logger.debug(f"[LinkAmongUs] 已找到 {len(users_to_kick)} 个需要踢出的未验证成员。")
 
-                        # 踢出用户
-                        for user in users_to_kick:
-                            log_id = user[0]
-                            user_qq_id = user[1]
-                            group_id = user[2]
-                            
-                            try:
-                                # 尝试踢出用户
-                                logger.info(f"[LinkAmongUs] 准备踢出用户 {user_qq_id} 从群 {group_id}。")
-                                from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-                                assert isinstance(event, AiocqhttpMessageEvent)
-                                await event.bot.set_group_kick(
-                                    group_id=int(group_id),
-                                    user_id=int(user_qq_id),
-                                    reject_add_request=False
-                                )
+                            # 踢出用户
+                            for user in users_to_kick:
+                                log_id = user[0]
+                                user_qq_id = user[1]
+                                group_id = user[2]
                                 
-                                # 更新入群验证日志
-                                await cursor.execute(
-                                    "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
-                                    ("Kicked", log_id)
-                                )
-                                logger.info(f"[LinkAmongUs] 已在群 {group_id} 踢出用户 {user_qq_id}。")
-                                
-                            except Exception as e:
-                                logger.error(f"[LinkAmongUs] 在群 {group_id} 踢出用户 {user_qq_id} 时发生意外错误: {e}")
-                                
-                        logger.info(f"[LinkAmongUs] 已完成未验证成员超时检查。")
+                                try:
+                                    # 尝试踢出用户
+                                    logger.info(f"[LinkAmongUs] 准备踢出用户 {user_qq_id} 从群 {group_id}。")
+                                    from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+                                    assert isinstance(event, AiocqhttpMessageEvent)
+                                    await event.bot.set_group_kick(
+                                        group_id=int(group_id),
+                                        user_id=int(user_qq_id),
+                                        reject_add_request=False
+                                    )
+                                    
+                                    # 更新入群验证日志
+                                    await cursor.execute(
+                                        "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
+                                        ("Kicked", log_id)
+                                    )
+                                    logger.info(f"[LinkAmongUs] 已在群 {group_id} 踢出用户 {user_qq_id}。")
+                                    
+                                except Exception as e:
+                                    logger.error(f"[LinkAmongUs] 在群 {group_id} 踢出用户 {user_qq_id} 时发生意外错误: {e}")
+                                    
+                        logger.debug(f"[LinkAmongUs] 已完成未验证成员超时检查。")
             except Exception as e:
                 logger.error(f"[LinkAmongUs] 定时任务执行时发生错误: {e}")
 
