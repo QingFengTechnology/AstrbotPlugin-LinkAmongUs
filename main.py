@@ -930,7 +930,7 @@ class LinkAmongUs(Star):
                     )                    
                     messageChain = [
                       Comp.At(qq=user_qq_id),
-                      Comp.Plain("\n本群已启清风服关联账号验证服务，您需要与机器人私聊完成关联验证。\n"),
+                      Comp.Plain("\n本群已启用清风服关联账号验证服务，您需要与机器人私聊完成关联验证。\n"),
                       Comp.Plain("与机器人私聊发送 /verify help 命令以获取帮助。\n"),
                       Comp.Plain("在完成验证之前，您将不得发言，若长时间未完成验证，您将被移出本群。")
                     ]
