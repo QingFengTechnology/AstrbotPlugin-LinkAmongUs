@@ -21,82 +21,115 @@ class LinkAmongUs(Star):
         # 加载配置
         self.config = config
         
-        self.whitelist_groups = self.config.get("WhitelistConfig_WhitelistGroups")
-        self.allow_private_message = self.config.get("WhitelistConfig_AllowPrivateMessage")
-        self.mysql_config = self.config.get("MySQLConfig")
-        self.api_config = self.config.get("APIConfig")
-        self.verify_config = self.config.get("VerifyConfig")
-        self.help_config = self.config.get("HelpConfig")
-        self.group_verify_config = self.config.get("GroupVerifyConfig")
+        # 白名单设置
+        self.WhitelistConfig: dict = self.config.get("WhitelistConfig")
+        self.WhitelistConfig_WhitelistGroups: list = self.WhitelistConfig.get("WhitelistConfig_WhitelistGroups")
+        self.WhitelistConfig_AllowPrivateMessage: bool = self.WhitelistConfig.get("WhitelistConfig_AllowPrivateMessage")
+
+        # MySQL设置
+        self.MySQLConfig: dict = self.config.get("MySQLConfig")
+        self.MySQLConfig_Address: str = self.MySQLConfig.get("MySQLConfig_Address")
+        self.MySQLConfig_Port: int = self.MySQLConfig.get("MySQLConfig_Port")
+        self.MySQLConfig_UserName: str = self.MySQLConfig.get("MySQLConfig_UserName")
+        self.MySQLConfig_UserPassword: str = self.MySQLConfig.get("MySQLConfig_UserPassword")
+        self.MySQLConfig_Database: str = self.MySQLConfig.get("MySQLConfig_Database")
+        
+        # API设置
+        self.APIConfig: dict = self.config.get("APIConfig")
+        self.APIConfig_EndPoint: str = self.APIConfig.get("APIConfig_EndPoint")
+        self.APIConfig_ServerName: str = self.APIConfig.get("APIConfig_ServerName")
+        self.APIConfig_Key: str = self.APIConfig.get("APIConfig_Key")
+        
+        # 进群验证设置
+        self.GroupVerifyConfig: dict = self.config.get("GroupVerifyConfig")
+        self.GroupVerifyConfig_NewMemberNeedVerify: bool = self.GroupVerifyConfig.get("GroupVerifyConfig_NewMemberNeedVerify")
+        self.GroupVerifyConfig_BanNewMemberDuration: int = self.GroupVerifyConfig.get("GroupVerifyConfig_BanNewMemberDuration")
+        # 自动踢出设置
+        self.GroupVerifyConfig_KickNewMemberConfig: dict = self.GroupVerifyConfig.get("GroupVerifyConfig_KickNewMemberConfig")
+        self.KickNewMemberConfig_KickNewMemberIfNotVerify: int = self.GroupVerifyConfig_KickNewMemberConfig.get("KickNewMemberConfig_KickNewMemberIfNotVerify")
+        self.KickNewMemberConfig_PollingInterval: int = self.GroupVerifyConfig_KickNewMemberConfig.get("KickNewMemberConfig_PollingInterval")
+
+        # 验证设置
+        self.VerifyConfig: dict = self.config.get("VerifyConfig")
+        self.VerifyConfig_BlackFriendCode: list = self.VerifyConfig.get("VerifyConfig_BlackFriendCode")
+        # 创建验证设置
+        self.VerifyConfig_CreateVerifyConfig: dict = self.VerifyConfig.get("VerifyConfig_CreateVerifyConfig")
+        self.CreateVerifyConfig_ApiTimeout: int = self.VerifyConfig_CreateVerifyConfig.get("CreateVerifyConfig_ApiTimeout")
+        self.CreateVerifyConfig_ProcessDuration: int = self.VerifyConfig_CreateVerifyConfig.get("CreateVerifyConfig_ProcessDuration")
+        # 完成验证设置
+        self.VerifyConfig_FinishVerifyConfig: dict = self.VerifyConfig.get("VerifyConfig_FinishVerifyConfig")
+        self.FinishVerifyConfig_AutoCheck: bool = self.VerifyConfig_FinishVerifyConfig.get("FinishVerifyConfig_AutoCheck")
 
         logger.debug("[LinkAmongUs] 插件已启动。")
         
     async def initialize(self):
         """初始化插件"""
-        try:
-            # 检查配置合法性
-            if self.group_verify_config.get("GroupVerifyConfig_BanNewMemberDuration") < 1 or self.group_verify_config.get("GroupVerifyConfig_BanNewMemberDuration") > 30:
-              logger.error("[LinkAmongUs] 配置值非法：配置 GroupVerifyConfig_BanNewMemberDuration 合法值应在 1-30 之间。")
-              raise ValueError("配置 GroupVerifyConfig_BanNewMemberDuration 值非法。")
-            if self.group_verify_config.get("KickNewMemberConfig_KickNewMemberIfNotVerify") < 1 or self.group_verify_config.get("KickNewMemberConfig_KickNewMemberIfNotVerify") > 30:
-              logger.error("[LinkAmongUs] 配置值非法：配置 KickNewMemberConfig_KickNewMemberIfNotVerify 合法值应在 1-30 之间。")
-              raise ValueError("配置 KickNewMemberConfig_KickNewMemberIfNotVerify 值非法。")
-            
-            # 创建数据库连接池
-            logger.debug(f"[LinkAmongUs] 正在尝试连接到 MySQL 服务器。")
-            try: 
-                self.db_pool = await aiomysql.create_pool(
-                    host=self.mysql_config.get("MySQLConfig_Address"),
-                    port=self.mysql_config.get("MySQLConfig_Port"),
-                    user=self.mysql_config.get("MySQLConfig_UserName"),
-                    password=self.mysql_config.get("MySQLConfig_UserPassword"),
-                    db=self.mysql_config.get("MySQLConfig_Database"),
-                    charset='utf8mb4',
-                    autocommit=True
-                )
-            except Exception as e:
-                logger.error(f"[LinkAmongUs] 连接至 MySQL 服务器时发生意外错误: {e}")
-                raise ConnectionError("连接至 MySQL 服务器时发生意外错误。")
-            
-            # 数据表完整性校验
-            logger.debug("[LinkAmongUs] 正在进行数据表完整性校验。")
-            required_tables = REQUEID_TABLES
-            async with self.db_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    # 检查每个表是否存在
-                    for table_name in required_tables:
-                        await cursor.execute(
-                            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
-                            (table_name,)
-                        )
-                        result = await cursor.fetchone()
-                        if result[0] == 0:
-                            logger.debug(f"[LinkAmongUs] 数据表 {table_name} 不存在，正在创建...")
-                            try:
-                                if table_name == "VerifyUserData":
-                                    await cursor.execute(VERIFY_USER_DATA)
-                                elif table_name == "VerifyLog":
-                                    await cursor.execute(VERIFY_LOG)
-                                elif table_name == "VerifyGroupLog":
-                                    await cursor.execute(VERIFY_GROUP_LOG)
-                                logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
-                            except Exception as e:
-                                logger.error(f"[LinkAmongUs] 创建数据表 {table_name} 时发生意外错误: {e}")
-                                raise aiomysql.MySQLError("创建数据表时发生意外错误。")
-                        else:
-                            logger.debug(f"[LinkAmongUs] 数据表 {table_name} 已存在。")
-            
-            # 创建HTTP会话
-            self.session = aiohttp.ClientSession()
-            
-            # 轮询踢出未验证用户
-            if self.group_verify_config.get("GroupVerifyConfig_KickNewMemberConfig").get("KickNewMemberConfig_Enable"):
-                asyncio.create_task(self.scheduled_kick_unverified_users())
-            
-            logger.info("[LinkAmongUs] 插件初始化完成。")
+        # 检查配置合法性
+        if self.GroupVerifyConfig_BanNewMemberDuration < 1 or self.GroupVerifyConfig_BanNewMemberDuration > 30:
+          logger.error("[LinkAmongUs] 配置值非法：配置 GroupVerifyConfig_BanNewMemberDuration 合法值应在 1-30 之间。")
+          raise ValueError("配置 GroupVerifyConfig_BanNewMemberDuration 值非法。")
+        if self.KickNewMemberConfig_PollingInterval < 1 or self.KickNewMemberConfig_PollingInterval > 30:
+          logger.error("[LinkAmongUs] 配置值非法：配置 KickNewMemberConfig_PollingInterval 合法值应在 1-30 之间。")
+          raise ValueError("配置 KickNewMemberConfig_PollingInterval 值非法。")
+        if not self.APIConfig_EndPoint:
+          logger.error("[LinkAmongUs] 配置值非法：配置 APIConfig_EndPoint 不能为空。")
+          raise ValueError("配置 APIConfig_EndPoint 值非法。")
+        if not self.APIConfig_Key:
+          logger.error("[LinkAmongUs] 配置值非法：配置 APIConfig_Key 不能为空。")
+          raise ValueError("配置 APIConfig_Key 值非法。")
+        
+        # 创建数据库连接池
+        logger.debug(f"[LinkAmongUs] 正在尝试连接到 MySQL 服务器。")
+        try: 
+            self.db_pool = await aiomysql.create_pool(
+                host=self.MySQLConfig_Address,
+                port=self.MySQLConfig_Port,
+                user=self.MySQLConfig_UserName,
+                password=self.MySQLConfig_UserPassword,
+                db=self.MySQLConfig_Database,
+                charset='utf8mb4',
+                autocommit=True
+            )
         except Exception as e:
-            logger.error(f"[LinkAmongUs] 初始化时发生错误: {e}")
-            raise
+            logger.error(f"[LinkAmongUs] 连接至 MySQL 服务器时发生意外错误: {e}")
+            raise ConnectionError("连接至 MySQL 服务器时发生意外错误。")
+        
+        # 数据表完整性校验
+        logger.debug("[LinkAmongUs] 正在进行数据表完整性校验。")
+        required_tables = REQUEID_TABLES
+        async with self.db_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                # 检查每个表是否存在
+                for table_name in required_tables:
+                    await cursor.execute(
+                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
+                        (table_name,)
+                    )
+                    result = await cursor.fetchone()
+                    if result[0] == 0:
+                        logger.debug(f"[LinkAmongUs] 数据表 {table_name} 不存在，正在创建...")
+                        try:
+                            if table_name == "VerifyUserData":
+                                await cursor.execute(VERIFY_USER_DATA)
+                            elif table_name == "VerifyLog":
+                                await cursor.execute(VERIFY_LOG)
+                            elif table_name == "VerifyGroupLog":
+                                await cursor.execute(VERIFY_GROUP_LOG)
+                            logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
+                        except Exception as e:
+                            logger.error(f"[LinkAmongUs] 创建数据表 {table_name} 时发生意外错误: {e}")
+                            raise aiomysql.MySQLError("创建数据表时发生意外错误。")
+                    else:
+                        logger.debug(f"[LinkAmongUs] 数据表 {table_name} 已存在。")
+        
+        # 创建HTTP会话
+        self.session = aiohttp.ClientSession()
+        
+        # 轮询踢出未验证用户
+        if self.KickNewMemberConfig_KickNewMemberIfNotVerify != 0:
+            asyncio.create_task(self.scheduled_kick_unverified_users())
+        
+        logger.info("[LinkAmongUs] 插件初始化完成。")
 
     async def terminate(self):
         """停止插件"""
@@ -114,10 +147,10 @@ class LinkAmongUs(Star):
     async def whitelist_check(self, event: AstrMessageEvent) -> bool:
         """白名单检查"""
         group_id = event.get_group_id()
-        if group_id == "" and not self.allow_private_message:
+        if group_id == "" and not self.WhitelistConfig_AllowPrivateMessage:
             logger.debug("[LinkAmongUs] 不允许在私聊中使用该命令，取消该任务。")
             return False
-        if group_id != "" and self.whitelist_groups and group_id not in self.whitelist_groups:
+        if group_id != "" and self.WhitelistConfig_WhitelistGroups and group_id not in self.WhitelistConfig_WhitelistGroups:
             logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
             return False
         return True
@@ -174,17 +207,9 @@ class LinkAmongUs(Star):
             api_key: 请求使用的API密钥。
             **kwargs: 额外参数。method不同，提供的参数也不同：GET和DELETE需要verify_code；PUT需要friend_code。
         """
-        api_endpoint = self.api_config.get("APIConfig_EndPoint")
-        if not api_endpoint:
-            logger.error("[LinkAmongUs] 未获取到有效的 API 端点，请检查你是否已在设置中配置。")
-            return None if method != 'DELETE' else False
-            
+        api_endpoint = self.APIConfig_EndPoint            
         url = f"{api_endpoint}/api/verify"
-        
-        # 获取超时配置
-        create_verify_config = self.verify_config.get("VerifyConfig_CreateVerfiyConfig", {})
-        timeout = create_verify_config.get("CreateVerfiyConfig_ApiTimeout")
-        
+        timeout = self.CreateVerifyConfig_ApiTimeout
         try:
             if method.upper() == 'PUT':
                 # 创建验证请求
@@ -400,11 +425,7 @@ class LinkAmongUs(Star):
 
         # 创建验证请求
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用 Among Us 账号 {friend_code} 创建了一个验证请求。")
-        api_key = self.api_config.get("APIConfig_Key")
-        if not api_key:
-            logger.warning("[LinkAmongUs] 创建验证请求失败，未获取到 API 密钥。")
-            yield event.plain_result("创建验证请求失败，API密钥未配置，请联系管理员。")
-            return
+        api_key = self.APIConfig_Key
         api_response = await self.api_verify_request("PUT", api_key, friend_code=friend_code)
         if not api_response:
             logger.warning("[LinkAmongUs] 创建验证请求失败，API 请求失败。")
@@ -432,9 +453,8 @@ class LinkAmongUs(Star):
             return
 
         # 发送成功消息
-        create_verify_config = self.verify_config.get("VerifyConfig_CreateVerfiyConfig", {})
-        process_duration = create_verify_config.get("CreateVerfiyConfig_ProcessDuration")
-        server_name = self.api_config.get("APIConfig_ServerName")
+        process_duration = self.CreateVerifyConfig_ProcessDuration
+        server_name = self.APIConfig_ServerName
         success_message = (
             f"成功创建验证请求，请在 {process_duration} 秒内使用账号 {friend_code} 加入 {server_name} 房间 {verify_code} 以完成验证。"
         )
@@ -470,11 +490,7 @@ class LinkAmongUs(Star):
 
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求完成验证。")
         # 查询验证状态
-        api_key = self.api_config.get("APIConfig_Key")
-        if not api_key:
-            logger.warning("[LinkAmongUs] 完成验证请求失败，未获取到 API 密钥。")
-            yield event.plain_result("检查验证失败，API密钥未配置，请联系管理员。")
-            return
+        api_key = self.APIConfig_Key
         api_response = await self.api_verify_request("GET", api_key, verify_code=verify_log["VerifyCode"])
         if not api_response:
             logger.warning("[LinkAmongUs] 完成验证请求失败，API 请求失败。")
@@ -566,8 +582,7 @@ class LinkAmongUs(Star):
     @verify.command("clean")
     async def verify_clean(self, event: AstrMessageEvent):
         """清理数据库中的非法验证请求"""
-        create_verify_config = self.verify_config.get("VerifyConfig_CreateVerfiyConfig")
-        process_duration = create_verify_config.get("CreateVerfiyConfig_ProcessDuration")
+        process_duration = self.CreateVerifyConfig_ProcessDuration
         logger.info(f"[LinkAmongUs] 管理员请求了清理数据库中的非法验证请求。")
         if not self.db_pool:
             logger.error("[LinkAmongUs] 清理数据库非法验证请求失败：数据库连接池未初始化。")
@@ -680,11 +695,7 @@ class LinkAmongUs(Star):
             return
 
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求取消验证请求。")
-        api_key = self.api_config.get("APIConfig_Key")
-        if not api_key:
-            logger.warning("[LinkAmongUs] 取消验证请求失败，未获取到 API 密钥。")
-            yield event.plain_result("取消验证请求失败，API密钥未配置，请联系管理员。")
-            return
+        api_key = self.APIConfig_Key
         verify_code = verify_log["VerifyCode"]
         delete_success = await self.api_verify_request("DELETE", api_key, verify_code=verify_code)
         update_success = await self.update_verify_log_status(verify_log["SQLID"], "Cancelled")
@@ -800,7 +811,7 @@ class LinkAmongUs(Star):
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def group_increase(self, event: AstrMessageEvent):
         """接收新成员入群事件以触发入群验证"""
-        if not self.group_verify_config.get("GroupVerifyConfig_NewMemberNeedVerify"):
+        if not self.GroupVerifyConfig_NewMemberNeedVerify:
             return
         # 筛选消息
         if not hasattr(event, "message_obj") or not hasattr(event.message_obj, "raw_message"):
@@ -836,7 +847,7 @@ class LinkAmongUs(Star):
             
         try:
             # 计算踢出时间
-            kick_duration = self.group_verify_config.get("GroupVerifyConfig_KickNewMemberConfig", {}).get("KickNewMemberConfig_KickNewMemberIfNotVerify", 7)
+            kick_duration = self.KickNewMemberConfig_KickNewMemberIfNotVerify
             from datetime import timedelta
             kick_time = datetime.now() + timedelta(days=kick_duration)
             
@@ -853,8 +864,7 @@ class LinkAmongUs(Star):
                     log_id = result[0]
 
                     # 禁言用户
-                    ban_duration = self.group_verify_config.get("GroupVerifyConfig_BanNewMemberDuration")
-                    ban_seconds = ban_duration * 24 * 60 * 60  # 转换为秒
+                    ban_seconds = self.GroupVerifyConfig_BanNewMemberDuration * 24 * 60 * 60  # 转换为秒
                     try:
                         from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
                         assert isinstance(event, AiocqhttpMessageEvent)
@@ -886,7 +896,7 @@ class LinkAmongUs(Star):
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def group_decrease(self, event: AstrMessageEvent):
         """处理成员退群事件"""
-        if not self.group_verify_config.get("GroupVerifyConfig_NewMemberNeedVerify"):
+        if not self.GroupVerifyConfig_NewMemberNeedVerify:
             return
         # 筛选消息
         if not hasattr(event, "message_obj") or not hasattr(event.message_obj, "raw_message"):
@@ -1002,5 +1012,5 @@ class LinkAmongUs(Star):
                 break
                     
             # 等待
-            polling_interval = self.group_verify_config.get("GroupVerifyConfig_KickNewMemberConfig").get("KickNewMemberConfig_PollingInterval")
+            polling_interval = self.KickNewMemberConfig_PollingInterval
             await asyncio.sleep(polling_interval * 3600)
