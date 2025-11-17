@@ -76,6 +76,42 @@
       }
     }
   },
+  "GroupVerifyConfig": {
+    "type": "object",
+    "description": "进群验证设置",
+    "items": {
+      "GroupVerifyConfig_NewMemberNeedVerify": {
+        "type": "bool",
+        "description": "要求新群成员加入时进行验证",
+        "default": false,
+        "hint": "在新成员加入群聊时禁言该成员，并指示其通过临时会话与机器人交互完成验证。开启此项注意需要允许私聊消息哦。"
+      },
+      "GroupVerifyConfig_BanNewMemberDuration": {
+        "type": "int",
+        "description": "禁言新成员时长",
+        "default": 14,
+        "hint": "新成员入群时禁言成员多长时间，单位为天。该值需要介于1-30之间，非法值将导致插件崩溃。"
+      },
+      "GroupVerifyConfig_KickNewMemberConfig": {
+        "type": "object",
+        "description": "自动踢出设置",
+        "items": {
+          "KickNewMemberConfig_KickNewMemberIfNotVerify": {
+            "type": "int",
+            "description": "当新成员多久未验证时踢出成员",
+            "default": 7,
+            "hint": "当新成员加群多久时间仍未验证则踢出该成员。该值需要介于1-30之间，非法值将导致插件崩溃。不建议设置值大于等于禁言新成员时长。"
+          },
+          "KickNewMemberConfig_PollingInterval": {
+            "type": "int",
+            "description": "踢出检查间隔",
+            "default": 12,
+            "hint": "每多长时间检查一次新成员是否应当踢出，单位为小时。插件启动时将始终进行一次踢出检查。"
+          }
+        }
+      }
+    }
+  },
   "VerifyConfig": {
     "type": "object",
     "description": "验证设置",

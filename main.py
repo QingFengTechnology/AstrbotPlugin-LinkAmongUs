@@ -4,6 +4,7 @@ import aiomysql
 from typing import Optional, Dict, Any
 from datetime import datetime
 
+import astrbot.api.message_components as Comp
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.api import logger, AstrBotConfig
@@ -25,12 +26,21 @@ class LinkAmongUs(Star):
         self.api_config = self.config.get("APIConfig")
         self.verify_config = self.config.get("VerifyConfig")
         self.help_config = self.config.get("HelpConfig")
+        self.group_verify_config = self.config.get("GroupVerifyConfig")
 
         logger.debug("[LinkAmongUs] 插件已启动。")
         
     async def initialize(self):
         """初始化插件"""
         try:
+            # 检查配置合法性
+            if self.group_verify_config.get("GroupVerifyConfig_BanNewMemberDuration") < 1 or self.group_verify_config.get("GroupVerifyConfig_BanNewMemberDuration") > 30:
+              logger.error("[LinkAmongUs] 配置值非法：配置 GroupVerifyConfig_BanNewMemberDuration 合法值应在 1-30 之间。")
+              raise ValueError("配置 GroupVerifyConfig_BanNewMemberDuration 值非法。")
+            if self.group_verify_config.get("KickNewMemberConfig_KickNewMemberIfNotVerify") < 1 or self.group_verify_config.get("KickNewMemberConfig_KickNewMemberIfNotVerify") > 30:
+              logger.error("[LinkAmongUs] 配置值非法：配置 KickNewMemberConfig_KickNewMemberIfNotVerify 合法值应在 1-30 之间。")
+              raise ValueError("配置 KickNewMemberConfig_KickNewMemberIfNotVerify 值非法。")
+            
             # 创建数据库连接池
             logger.debug(f"[LinkAmongUs] 正在尝试连接到 MySQL 服务器。")
             try: 
@@ -76,6 +86,10 @@ class LinkAmongUs(Star):
             
             # 创建HTTP会话
             self.session = aiohttp.ClientSession()
+            
+            # 轮询踢出未验证用户
+            if self.group_verify_config.get("GroupVerifyConfig_KickNewMemberConfig").get("KickNewMemberConfig_Enable"):
+                asyncio.create_task(self.scheduled_kick_unverified_users())
             
             logger.info("[LinkAmongUs] 插件初始化完成。")
         except Exception as e:
@@ -722,3 +736,265 @@ class LinkAmongUs(Star):
         if not await self.whitelist_check(event):
             return
         yield event.plain_result(HELP_MENU)
+
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
+    # 只允许私聊
+    @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
+    @verify.command("unban")
+    async def verify_unban(self, event: AstrMessageEvent):
+        """尝试解除入群验证禁言"""
+        if not await self.whitelist_check(event):
+            return
+            
+        user_qq_id = event.get_sender_id()
+        logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求解除入群验证禁言。")
+        
+        if not self.db_pool:
+            logger.error("[LinkAmongUs] 未能查询入群验证日志：数据库连接池未初始化。")
+            yield event.plain_result("解除禁言失败，数据库连接池未初始化。")
+            return
+            
+        try:
+            async with self.db_pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        "SELECT SQLID, BanGroupID FROM VerifyGroupLog WHERE VerifyUserID = %s AND Status = %s",
+                        (user_qq_id, "Banned")
+                    )
+
+                    banned_logs = await cursor.fetchall()
+                    if not banned_logs:
+                        logger.info(f"[LinkAmongUs] 未找到用户 {user_qq_id} 的入群验证禁言记录。")
+                        yield event.plain_result("未找到你正在进行中的入群验证。\n如果确实仍在被禁言，请联系对应群聊的管理员手动解禁。")
+                        return
+
+                    unbanned_groups = []
+                    for log in banned_logs:
+                        log_id = log[0]
+                        group_id = log[1]
+                        try:
+                            from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+                            assert isinstance(event, AiocqhttpMessageEvent)
+                            await event.bot.set_group_ban(
+                                group_id=int(group_id),
+                                user_id=int(user_qq_id),
+                                duration=0
+                            )
+                            logger.debug(f"[LinkAmongUs] 已解除用户 {user_qq_id} 在群 {group_id} 的禁言。")
+                            unbanned_groups.append(group_id)
+                            await cursor.execute(
+                                "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
+                                ("Unbanned", log_id)
+                            )
+                        except Exception as e:
+                            logger.error(f"[LinkAmongUs] 解除用户 {user_qq_id} 在群 {group_id} 的禁言时发生意外错误: {e}")
+                        yield event.plain_result("已尝试解除你的入群验证禁言，如不生效请联系群聊管理员手动解除。")
+                        
+        except Exception as e:
+            logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 的解除禁言请求时发生错误: {e}")
+            yield event.plain_result("解除禁言失败，发生意外错误，请联系管理员。")
+
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def group_increase(self, event: AstrMessageEvent):
+        """接收新成员入群事件以触发入群验证"""
+        if not self.group_verify_config.get("GroupVerifyConfig_NewMemberNeedVerify"):
+            return
+        # 筛选消息
+        if not hasattr(event, "message_obj") or not hasattr(event.message_obj, "raw_message"):
+            return
+        raw_message = event.message_obj.raw_message
+        if not raw_message or not isinstance(raw_message, dict):
+            return
+
+        # 筛选事件
+        if raw_message.get("post_type") != "notice":
+            return
+        if raw_message.get("notice_type") != "group_increase":
+            return
+        if not await self.whitelist_check(event):
+            return
+            
+        # 获取群号和用户QQ号
+        group_id = str(raw_message.get("group_id"))
+        user_qq_id = str(raw_message.get("user_id"))
+        
+        logger.debug(f"[LinkAmongUs] 新成员 {user_qq_id} 加入了群 {group_id}。")
+
+        user_data = await self.check_user_exists_in_verify_data(user_qq_id)
+        if user_data:
+            logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 已关联 Among Us 账号，跳过入群验证流程。")
+            return
+            
+        # 入群验证
+        logger.info(f"[LinkAmongUs] 准备为成员 {user_qq_id} 创建入群验证。")
+        if not self.db_pool:
+            logger.error("[LinkAmongUs] 未能写入验证日志：数据库连接池未初始化。")
+            return
+            
+        try:
+            # 计算踢出时间
+            kick_duration = self.group_verify_config.get("GroupVerifyConfig_KickNewMemberConfig", {}).get("KickNewMemberConfig_KickNewMemberIfNotVerify", 7)
+            from datetime import timedelta
+            kick_time = datetime.now() + timedelta(days=kick_duration)
+            
+            async with self.db_pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    # 写入验证日志
+                    await cursor.execute(
+                        "INSERT INTO VerifyGroupLog (Status, VerifyUserID, BanGroupID, KickTime) VALUES (%s, %s, %s, %s)",
+                        ("Created", user_qq_id, group_id, kick_time)
+                    )
+
+                    await cursor.execute("SELECT LAST_INSERT_ID()")
+                    result = await cursor.fetchone()
+                    log_id = result[0]
+
+                    # 禁言用户
+                    ban_duration = self.group_verify_config.get("GroupVerifyConfig_BanNewMemberDuration")
+                    ban_seconds = ban_duration * 24 * 60 * 60  # 转换为秒
+                    try:
+                        from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+                        assert isinstance(event, AiocqhttpMessageEvent)
+                        await event.bot.set_group_ban(
+                            group_id=int(group_id),
+                            user_id=int(user_qq_id),
+                            duration=ban_seconds
+                        )
+                        logger.debug(f"[LinkAmongUs] 已禁言成员 {user_qq_id}。")
+                    except Exception as e:
+                        logger.error(f"[LinkAmongUs] 禁言用户 {user_qq_id} 时发生错误: {e}")
+                        return
+                    await cursor.execute(
+                        "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
+                        ("Banned", log_id)
+                    )                    
+                    messageChain = [
+                      Comp.At(qq=user_qq_id),
+                      Comp.Plain("\n本群已启清风服关联账号验证服务，您需要与机器人私聊完成关联验证。\n"),
+                      Comp.Plain("与机器人私聊发送 /verify help 命令以获取帮助。\n"),
+                      Comp.Plain("在完成验证之前，您将不得发言，若长时间未完成验证，您将被移出本群。")
+                    ]
+                    yield event.chain_result(messageChain)
+                    
+        except Exception as e:
+            logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 入群验证时发生错误: {e}")
+
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def group_decrease(self, event: AstrMessageEvent):
+        """处理成员退群事件"""
+        if not self.group_verify_config.get("GroupVerifyConfig_NewMemberNeedVerify"):
+            return
+        # 筛选消息
+        if not hasattr(event, "message_obj") or not hasattr(event.message_obj, "raw_message"):
+            return
+        raw_message = event.message_obj.raw_message
+        if not raw_message or not isinstance(raw_message, dict):
+            return
+
+        # 筛选事件
+        if raw_message.get("post_type") != "notice":
+            return
+        if raw_message.get("notice_type") != "group_increase":
+            return
+        if not await self.whitelist_check(event):
+            return
+
+        # 获取群号和用户QQ号
+        group_id = str(raw_message.get("group_id"))
+        user_qq_id = str(raw_message.get("user_id"))
+
+        logger.debug(f"[LinkAmongUs] 成员 {user_qq_id} 退出了群 {group_id}。")
+        
+        if not self.db_pool:
+            logger.error("[LinkAmongUs] 未能更新验证日志：数据库连接池未初始化。")
+            return
+            
+        try:
+            logger.info(f"[LinkAmongUs] 准备取消用户 {user_qq_id} 在群 {group_id} 的入群验证。")
+            async with self.db_pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    # 查找验证日志
+                    await cursor.execute(
+                        "SELECT SQLID, Status FROM VerifyGroupLog WHERE VerifyUserID = %s AND BanGroupID = %s",
+                        (user_qq_id, group_id)
+                    )
+                    log = await cursor.fetchone()
+                    if not log:
+                        logger.debug(f"[LinkAmongUs] 未找到用户 {user_qq_id} 在群 {group_id} 的验证日志。")
+                        return
+                        
+                    # 取消入群验证
+                    log_id = log[0]
+                    status = log[1]
+                    if status in ["Created", "Banned"]:
+                        await cursor.execute(
+                            "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
+                            ("Cancelled", log_id)
+                        )
+                        logger.info(f"[LinkAmongUs] 已取消成员 {user_qq_id} 在群 {group_id} 的入群验证。")
+                        
+        except Exception as e:
+            logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 退群 {group_id} 事件时发生错误: {e}")
+
+    async def scheduled_kick_unverified_users(self, event: AstrMessageEvent):
+        """定时任务：检查并踢出未验证的用户"""
+        logger.info("[LinkAmongUs] 已启动未验证成员超时检查。")
+
+        while True:
+            try:
+                logger.debug("[LinkAmongUs] 正在准备未验证成员超时检查。")
+                if not self.db_pool:
+                    logger.error("[LinkAmongUs] 未能进行未验证成员超时检查，数据库连接池未初始化。")
+                    continue
+
+                # 查找需要踢出的成员
+                current_time = datetime.now()
+                async with self.db_pool.acquire() as conn:
+                    async with conn.cursor() as cursor:
+                        await cursor.execute(
+                            "SELECT SQLID, VerifyUserID, BanGroupID FROM VerifyGroupLog WHERE Status = %s AND KickTime <= %s",
+                            ("Banned", current_time)
+                        )
+                        users_to_kick = await cursor.fetchall()
+                        
+                        if not users_to_kick:
+                            logger.debug("[LinkAmongUs] 没有需要踢出的未验证成员。")
+                            continue
+                        logger.debug(f"[LinkAmongUs] 已找到 {len(users_to_kick)} 个需要踢出的未验证成员。")
+
+                        # 踢出用户
+                        for user in users_to_kick:
+                            log_id = user[0]
+                            user_qq_id = user[1]
+                            group_id = user[2]
+                            
+                            try:
+                                # 尝试踢出用户
+                                logger.info(f"[LinkAmongUs] 准备踢出用户 {user_qq_id} 从群 {group_id}。")
+                                from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+                                assert isinstance(event, AiocqhttpMessageEvent)
+                                await event.bot.set_group_kick(
+                                    group_id=int(group_id),
+                                    user_id=int(user_qq_id),
+                                    reject_add_request=False
+                                )
+                                
+                                # 更新入群验证日志
+                                await cursor.execute(
+                                    "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
+                                    ("Kicked", log_id)
+                                )
+                                logger.info(f"[LinkAmongUs] 已在群 {group_id} 踢出用户 {user_qq_id}。")
+                                
+                            except Exception as e:
+                                logger.error(f"[LinkAmongUs] 在群 {group_id} 踢出用户 {user_qq_id} 时发生意外错误: {e}")
+                                
+                        logger.info(f"[LinkAmongUs] 已完成未验证成员超时检查。")
+            except Exception as e:
+                logger.error(f"[LinkAmongUs] 定时任务执行时发生错误: {e}")
+
+                # 等待
+                polling_interval = self.group_verify_config.get("GroupVerifyConfig_KickNewMemberConfig").get("KickNewMemberConfig_PollingInterval")
+                await asyncio.sleep(polling_interval * 3600)  
