@@ -28,3 +28,17 @@ PRIMARY KEY (SQLID),
 UNIQUE KEY unique_user_data (UserQQID, UserFriendCode, UserPuid, UserHashedPuid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
 """
+
+VERIFY_GROUP_LOG = """
+CREATE TABLE IF NOT EXISTS VerifyGroupLog (
+SQLID smallint NOT NULL AUTO_INCREMENT,
+CreateTime datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+Status set('Created','Banned','Unbanned','Kicked','Cancelled') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+VerifyUserID varchar(13) NOT NULL,
+BanGroupID varchar(13) NOT NULL,
+KickTime datetime NOT NULL,
+PRIMARY KEY (SQLID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+"""
+
+REQUEID_TABLES = ["VerifyUserData", "VerifyLog", "VerifyGroupLog"]

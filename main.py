@@ -10,7 +10,7 @@ from astrbot.api.star import Context, Star
 from astrbot.api import logger, AstrBotConfig
 
 from .Variable.helpMenu import HELP_MENU
-from .Variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA
+from .Variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
 
 class LinkAmongUs(Star):
     def __init__(self, context: Context, config: AstrBotConfig): # AstrBotConfig 继承自 Dict，拥有字典的所有方法。
@@ -59,8 +59,7 @@ class LinkAmongUs(Star):
             
             # 数据表完整性校验
             logger.debug("[LinkAmongUs] 正在进行数据表完整性校验。")
-
-            required_tables = ["VerifyUserData", "VerifyLog"]
+            required_tables = REQUEID_TABLES
             async with self.db_pool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     # 检查每个表是否存在
@@ -77,6 +76,8 @@ class LinkAmongUs(Star):
                                     await cursor.execute(VERIFY_USER_DATA)
                                 elif table_name == "VerifyLog":
                                     await cursor.execute(VERIFY_LOG)
+                                elif table_name == "VerifyGroupLog":
+                                    await cursor.execute(VERIFY_GROUP_LOG)
                                 logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
                             except Exception as e:
                                 logger.error(f"[LinkAmongUs] 创建数据表 {table_name} 时发生意外错误: {e}")
@@ -997,4 +998,4 @@ class LinkAmongUs(Star):
 
                 # 等待
                 polling_interval = self.group_verify_config.get("GroupVerifyConfig_KickNewMemberConfig").get("KickNewMemberConfig_PollingInterval")
-                await asyncio.sleep(polling_interval * 3600)  
+                await asyncio.sleep(polling_interval * 3600)
