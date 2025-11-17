@@ -153,6 +153,7 @@
         "type": "object",
         "description": "完成验证设置",
         "hint": "/verify finish命令的相关配置。",
+        "invisible": true,
         "items": {
           "FinishVerifyConfig_AutoCheck": {
             "type": "bool",
