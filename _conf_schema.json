@@ -139,13 +139,14 @@
           "CreateVerifyConfig_TimeoutReminder": {
             "type": "int",
             "description": "超时提醒时间",
-            "hint": "在超时前的多少秒发送提醒用户完成验证，设为0以禁用该功能。该值不能大于验证超时时间，否则将导致插件崩溃。"
+            "hint": "在超时前的多少秒发送提醒用户完成验证，设为0以禁用该功能。该值不能大于验证超时时间，否则将导致插件崩溃。",
+            "default": 180
           },
           "CreateVerifyConfig_ProcessDuration": {
             "type": "int",
             "description": "验证超时时间",
             "hint": "向API发送请求多少秒后主动标记为验证超时并发送销毁验证请求。由于Nmpostor限制，该选项仅可填写1-600秒，否则将导致插件崩溃。",
-            "default": 600
+            "default": 540
           }
         }
       },
