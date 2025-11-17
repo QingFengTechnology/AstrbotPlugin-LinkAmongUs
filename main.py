@@ -111,11 +111,6 @@ class LinkAmongUs(Star):
             await self.session.close()
         logger.debug("[LinkAmongUs] 插件已停止。")
 
-    async def check_black_friend_code(self, friend_code: str) -> bool:
-        """检查好友代码是否在黑名单中"""
-        black_list = self.verify_config.get("VerifyConfig_BlackFriendCode", [])
-        return friend_code in black_list
-
     async def whitelist_check(self, event: AstrMessageEvent) -> bool:
         """白名单检查"""
         group_id = event.get_group_id()
@@ -363,7 +358,8 @@ class LinkAmongUs(Star):
             return
 
         # 检查好友代码是否在黑名单中
-        if await self.check_black_friend_code(friend_code):
+        black_list = self.verify_config.get("VerifyConfig_BlackFriendCode")
+        if friend_code in black_list:
             logger.debug(f"[LinkAmongUs] 用户使用的好友代码命中黑名单，拒绝使用此好友代码创建验证请求。")
             yield event.plain_result("创建验证请求失败，此好友代码非法。")
             return
