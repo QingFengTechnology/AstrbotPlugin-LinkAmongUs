@@ -9,7 +9,7 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.api import logger, AstrBotConfig
 
-from .Variable.helpMenu import HELP_MENU
+from .Variable.helpMenu import help_menu
 from .Variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
 
 class LinkAmongUs(Star):
@@ -20,7 +20,7 @@ class LinkAmongUs(Star):
         self.running = True  # 添加标志位控制定时任务循环
         # 加载配置
         self.config = config
-        
+
         # 白名单设置
         self.WhitelistConfig: dict = self.config.get("WhitelistConfig")
         self.WhitelistConfig_WhitelistGroups: list = self.WhitelistConfig.get("WhitelistConfig_WhitelistGroups")
@@ -60,6 +60,14 @@ class LinkAmongUs(Star):
         # 完成验证设置
         self.VerifyConfig_FinishVerifyConfig: dict = self.VerifyConfig.get("VerifyConfig_FinishVerifyConfig")
         self.FinishVerifyConfig_AutoCheck: bool = self.VerifyConfig_FinishVerifyConfig.get("FinishVerifyConfig_AutoCheck")
+
+        # 生成帮助菜单
+        star_metadata = context.get_registered_star("astrbot_plugin_link_amongus")
+        self.help_menu = help_menu(
+            plugin_name=star_metadata.name,
+            version=star_metadata.version,
+            author=star_metadata.author
+        )
 
         logger.debug("[LinkAmongUs] 插件已启动。")
         
@@ -787,7 +795,7 @@ class LinkAmongUs(Star):
         """发送帮助菜单"""
         if not await self.whitelist_check(event):
             return
-        yield event.plain_result(HELP_MENU)
+        yield event.plain_result(self.help_menu)
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     # 只允许私聊

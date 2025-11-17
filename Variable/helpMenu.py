@@ -1,11 +1,6 @@
-from astrbot.api.star import Context
-
-star_metadata = Context.get_registered_star("astrbot_plugin_link_amongus")
-plugin_name = star_metadata.name
-version = star_metadata.version
-author = star_metadata.author
-
-HELP_MENU = f"""{plugin_name} {version} By {author}
+def help_menu(plugin_name: str, version: str, author: str) -> str:
+    """生成帮助菜单"""
+    return f"""{plugin_name} {version} By {author}
 /verify help - 显示此帮助菜单。
 
 /verify create <FriendCode> - 创建一个验证请求。
