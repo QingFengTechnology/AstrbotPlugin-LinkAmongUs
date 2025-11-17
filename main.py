@@ -55,6 +55,7 @@ class LinkAmongUs(Star):
         # 创建验证设置
         self.VerifyConfig_CreateVerifyConfig: dict = self.VerifyConfig.get("VerifyConfig_CreateVerifyConfig")
         self.CreateVerifyConfig_ApiTimeout: int = self.VerifyConfig_CreateVerifyConfig.get("CreateVerifyConfig_ApiTimeout")
+        self.CreateVerifyConfig_TimeoutReminder: int = self.VerifyConfig_CreateVerifyConfig.get("CreateVerifyConfig_TimeoutReminder")
         self.CreateVerifyConfig_ProcessDuration: int = self.VerifyConfig_CreateVerifyConfig.get("CreateVerifyConfig_ProcessDuration")
         # 完成验证设置
         self.VerifyConfig_FinishVerifyConfig: dict = self.VerifyConfig.get("VerifyConfig_FinishVerifyConfig")
@@ -65,17 +66,23 @@ class LinkAmongUs(Star):
     async def initialize(self):
         """初始化插件"""
         # 检查配置合法性
+        if self.CreateVerifyConfig_TimeoutReminder < 1 or self.CreateVerifyConfig_TimeoutReminder > self.CreateVerifyConfig_ProcessDuration:
+          logger.fatal(f"[LinkAmongUs] 配置值非法：配置 CreateVerifyConfig_TimeoutReminder 合法值应在 1-{self.CreateVerifyConfig_ProcessDuration} 之间。")
+          raise ValueError("配置 CreateVerifyConfig_TimeoutReminder 值非法。")
+        if self.CreateVerifyConfig_ProcessDuration < 1 or self.CreateVerifyConfig_ProcessDuration > 600:
+          logger.fatal("[LinkAmongUs] 配置值非法：配置 CreateVerifyConfig_ProcessDuration 合法值应在 1-600 之间。")
+          raise ValueError("配置 CreateVerifyConfig_ProcessDuration 值非法。")
         if self.GroupVerifyConfig_BanNewMemberDuration < 1 or self.GroupVerifyConfig_BanNewMemberDuration > 30:
-          logger.error("[LinkAmongUs] 配置值非法：配置 GroupVerifyConfig_BanNewMemberDuration 合法值应在 1-30 之间。")
+          logger.fatal("[LinkAmongUs] 配置值非法：配置 GroupVerifyConfig_BanNewMemberDuration 合法值应在 1-30 之间。")
           raise ValueError("配置 GroupVerifyConfig_BanNewMemberDuration 值非法。")
         if self.KickNewMemberConfig_PollingInterval < 1 or self.KickNewMemberConfig_PollingInterval > 30:
-          logger.error("[LinkAmongUs] 配置值非法：配置 KickNewMemberConfig_PollingInterval 合法值应在 1-30 之间。")
+          logger.fatal("[LinkAmongUs] 配置值非法：配置 KickNewMemberConfig_PollingInterval 合法值应在 1-30 之间。")
           raise ValueError("配置 KickNewMemberConfig_PollingInterval 值非法。")
         if not self.APIConfig_EndPoint:
-          logger.error("[LinkAmongUs] 配置值非法：配置 APIConfig_EndPoint 不能为空。")
+          logger.fatal("[LinkAmongUs] 配置值非法：配置 APIConfig_EndPoint 不能为空。")
           raise ValueError("配置 APIConfig_EndPoint 值非法。")
         if not self.APIConfig_Key:
-          logger.error("[LinkAmongUs] 配置值非法：配置 APIConfig_Key 不能为空。")
+          logger.fatal("[LinkAmongUs] 配置值非法：配置 APIConfig_Key 不能为空。")
           raise ValueError("配置 APIConfig_Key 值非法。")
         
         # 创建数据库连接池
@@ -91,7 +98,7 @@ class LinkAmongUs(Star):
                 autocommit=True
             )
         except Exception as e:
-            logger.error(f"[LinkAmongUs] 连接至 MySQL 服务器时发生意外错误: {e}")
+            logger.fatal(f"[LinkAmongUs] 连接至 MySQL 服务器时发生意外错误: {e}")
             raise ConnectionError("连接至 MySQL 服务器时发生意外错误。")
         
         # 数据表完整性校验
@@ -117,7 +124,7 @@ class LinkAmongUs(Star):
                                 await cursor.execute(VERIFY_GROUP_LOG)
                             logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
                         except Exception as e:
-                            logger.error(f"[LinkAmongUs] 创建数据表 {table_name} 时发生意外错误: {e}")
+                            logger.fatal(f"[LinkAmongUs] 创建数据表 {table_name} 时发生意外错误: {e}")
                             raise aiomysql.MySQLError("创建数据表时发生意外错误。")
                     else:
                         logger.debug(f"[LinkAmongUs] 数据表 {table_name} 已存在。")
