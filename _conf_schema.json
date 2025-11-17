@@ -125,7 +125,7 @@
           "nocode#9999"
         ]
       },
-      "VerifyConfig_CreateVerfiyConfig": {
+      "VerifyConfig_CreateVerifyConfig": {
         "type": "object",
         "description": "创建验证设置",
         "hint": "/verify create命令的相关配置。",
