@@ -17,6 +17,7 @@ class LinkAmongUs(Star):
         super().__init__(context)
         self.db_pool = None
         self.session = None
+        self.running = True  # 添加标志位控制定时任务循环
         # 加载配置
         self.config = config
         
@@ -99,6 +100,10 @@ class LinkAmongUs(Star):
 
     async def terminate(self):
         """停止插件"""
+        # 停止定时任务
+        self.running = False
+        
+        # 终止数据库连接
         if self.db_pool:
             self.db_pool.close()
             await self.db_pool.wait_closed()
@@ -943,12 +948,11 @@ class LinkAmongUs(Star):
         """定时任务：检查并踢出未验证的用户"""
         logger.info("[LinkAmongUs] 已启动未验证成员超时检查。")
 
-        while True:
+        while self.running:  # 使用self.running标志位控制循环
             try:
                 logger.debug("[LinkAmongUs] 正在准备未验证成员超时检查。")
                 if not self.db_pool:
                     logger.error("[LinkAmongUs] 未能进行未验证成员超时检查，数据库连接池未初始化。")
-                    continue
 
                 # 查找需要踢出的成员
                 current_time = datetime.now()
@@ -996,6 +1000,11 @@ class LinkAmongUs(Star):
             except Exception as e:
                 logger.error(f"[LinkAmongUs] 定时任务执行时发生错误: {e}")
 
-                # 等待
-                polling_interval = self.group_verify_config.get("GroupVerifyConfig_KickNewMemberConfig").get("KickNewMemberConfig_PollingInterval")
-                await asyncio.sleep(polling_interval * 3600)
+            # 检查是否应继续执行任务
+            if not self.running:
+                logger.info("[LinkAmongUs] 已停止未验证成员超时检查。")
+                break
+                    
+            # 等待
+            polling_interval = self.group_verify_config.get("GroupVerifyConfig_KickNewMemberConfig").get("KickNewMemberConfig_PollingInterval")
+            await asyncio.sleep(polling_interval * 3600)
