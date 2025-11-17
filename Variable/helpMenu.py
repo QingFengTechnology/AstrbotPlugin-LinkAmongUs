@@ -1,6 +1,9 @@
 def help_menu(plugin_name: str, version: str, author: str) -> str:
     """生成帮助菜单"""
     return f"""{plugin_name} {version} By {author}
+
+帮助菜单：
+
 /verify help - 显示此帮助菜单。
 
 /verify create <FriendCode> - 创建一个验证请求。
