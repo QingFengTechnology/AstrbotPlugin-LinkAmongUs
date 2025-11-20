@@ -398,7 +398,7 @@ class LinkAmongUs(Star):
             return
 
         # 检查好友代码是否在黑名单中
-        black_list = self.verify_config.get("VerifyConfig_BlackFriendCode")
+        black_list = self.VerifyConfig_BlackFriendCode
         if friend_code in black_list:
             logger.debug(f"[LinkAmongUs] 用户使用的好友代码命中黑名单，拒绝使用此好友代码创建验证请求。")
             yield event.plain_result("创建验证请求失败，此好友代码非法。")
@@ -430,7 +430,7 @@ class LinkAmongUs(Star):
             verify_code = active_verify_request["VerifyCode"]
             friend_code = active_verify_request["UserFriendCode"]
             if status in ["Created", "Retrying"]:
-                server_name = self.api_config.get("APIConfig_ServerName")
+                server_name = self.APIConfig_ServerName
                 logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 已有进行中的验证请求，拒绝重复创建验证请求。")
                 yield event.plain_result(
                     f"创建验证请求失败，你已于 {create_time} 使用 {friend_code} 创建了一个验证请求，需要加入服务器 {server_name} 房间 {verify_code} 以完成验证。\n"
