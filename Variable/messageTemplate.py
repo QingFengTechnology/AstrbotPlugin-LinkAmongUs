@@ -1,5 +1,7 @@
+import astrbot.api.message_components as Comp
+
 def help_menu(plugin_name: str, version: str, author: str) -> str:
-    """生成帮助菜单"""
+    """获取帮助菜单的消息模板"""
     return f"""{plugin_name} {version} By {author}
 
 帮助菜单：
@@ -31,3 +33,13 @@ Args:
 /verify clean - 清理数据库中的非法验证请求。
 - 此操作将检查数据库中的验证日志表，将所有创建超过 10 分钟的但仍未结束的验证日志标记为过期。
 """
+
+def new_user_join(user_qq_id: int | str):
+    """获取入群验证提示的消息模板"""
+    return [
+Comp.At(qq=user_qq_id),
+Comp.Plain("""
+本群已启用清风服关联账号验证服务，您需要与机器人私聊完成关联验证。
+与机器人私聊发送 /verify help 命令以获取帮助。
+在完成验证之前，您将不得发言，若长时间未完成验证，您将被移出本群。""")
+]

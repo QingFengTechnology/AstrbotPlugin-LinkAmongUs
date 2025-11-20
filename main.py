@@ -9,8 +9,8 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.api import logger, AstrBotConfig
 
-from .Variable.helpMenu import help_menu
 from .Variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
+from .Variable.messageTemplate import help_menu, new_user_join
 
 class LinkAmongUs(Star):
     def __init__(self, context: Context, config: AstrBotConfig): # AstrBotConfig 继承自 Dict，拥有字典的所有方法。
@@ -927,15 +927,8 @@ class LinkAmongUs(Star):
                     await cursor.execute(
                         "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
                         ("Banned", log_id)
-                    )                    
-                    messageChain = [
-                      Comp.At(qq=user_qq_id),
-                      Comp.Plain("""
-                      本群已启用清风服关联账号验证服务，您需要与机器人私聊完成关联验证。
-                      与机器人私聊发送 /verify help 命令以获取帮助。
-                      在完成验证之前，您将不得发言，若长时间未完成验证，您将被移出本群。""")
-                    ]
-                    yield event.chain_result(messageChain)
+                    )
+                    yield event.chain_result(new_user_join(user_qq_id))
                     
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 入群验证时发生错误: {e}")
