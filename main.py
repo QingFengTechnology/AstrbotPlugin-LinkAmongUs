@@ -812,6 +812,13 @@ class LinkAmongUs(Star):
         user_qq_id = event.get_sender_id()
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求解除入群验证禁言。")
         
+        # 检查用户是否已关联账号
+        existing_user = await self.check_user_exists_in_verify_data(user_qq_id)
+        if not existing_user:
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未关联账号，拒绝解除禁言。")
+            yield event.plain_result("解除禁言失败，你还未进行账号关联。")
+            return
+            
         if not self.db_pool:
             logger.error("[LinkAmongUs] 未能查询入群验证日志：数据库连接池未初始化。")
             yield event.plain_result("解除禁言失败，数据库连接池未初始化。")
