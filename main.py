@@ -481,44 +481,47 @@ class LinkAmongUs(Star):
         user_group_id = event.get_group_id()
         asyncio.create_task(self.verification_timeout_checker(user_qq_id, user_group_id, process_duration, umo))
 
-    async def verification_timeout_checker(self, user_qq_id: str, user_group_id: str,  timeout: int, umo: str):
-        """检查验证是否超时"""
+    async def verification_timeout_checker(self, user_qq_id: str, user_group_id: str, timeout: int, umo: str):
+        """验证超时检查任务"""
         logger.debug(f"已启动用户 {user_qq_id} 的验证请求超时检查任务。")
 
         # 检查是否启用超时提醒
         if self.CreateVerifyConfig_TimeoutReminder != 0:
-          reminder_time = timeout - self.CreateVerifyConfig_TimeoutReminder
-          await asyncio.sleep(reminder_time)
+            reminder_time = timeout - self.CreateVerifyConfig_TimeoutReminder
+            await asyncio.sleep(reminder_time)
 
-          verify_log = await self.get_active_verify_request(user_qq_id)
-          if verify_log and verify_log["Status"] in ["Created", "Retrying"]:
-            messageChain_Group = [
-              Comp.At(qq=user_qq_id),
-              Comp.Plain("\n你的验证请求即将过期，请尽快完成验证！\n如果已使用Among Us完成了验证，请发送/verify finish命令。")
-            ]
-            messageChain_Private = [
-              Comp.Plain("\n你的验证请求即将过期，请尽快完成验证！\n如果已使用Among Us完成了验证，请发送/verify finish命令。")
-            ]
-            if user_group_id == "":
-              messageChain = messageChain_Private
+            verify_log = await self.get_active_verify_request(user_qq_id)
+            # 发送超时提醒
+            if verify_log and verify_log["Status"] in ["Created", "Retrying"]:
+                messageChain_Group = [
+                    Comp.At(qq=user_qq_id),
+                    Comp.Plain("\n你的验证请求即将过期，请尽快完成验证！\n如果已使用Among Us完成了验证，请发送/verify finish命令。")
+                ]
+                messageChain_Private = [
+                    Comp.Plain("你的验证请求即将过期，请尽快完成验证！\n如果已使用Among Us完成了验证，请发送/verify finish命令。")
+                ]
+                if user_group_id == "":
+                    messageChain = messageChain_Private
+                else:
+                    messageChain = messageChain_Group
+                await self.context.send_message(umo, messageChain)
+                logger.debug(f"已提醒用户 {user_qq_id} 完成验证请求。")
+
+                # 等待剩余时间
+                await asyncio.sleep(self.CreateVerifyConfig_TimeoutReminder)
             else:
-              messageChain = messageChain_Group
-            await self.context.send_message(umo, messageChain)
-            logger.debug(f"已提醒用户 {user_qq_id} 完成验证请求。")
-
-            await asyncio.sleep(self.CreateVerifyConfig_TimeoutReminder)
-          else:
-            logger.debug(f"用户 {user_qq_id} 已完成验证请求，结束超时检查任务。")
-            return
+                logger.debug(f"用户 {user_qq_id} 已完成验证请求，结束超时检查任务。")
+                return
         else:
-          await asyncio.sleep(timeout)
-          
+            await asyncio.sleep(timeout)
+        
+        # 最终的超时检查
         verify_log = await self.get_active_verify_request(user_qq_id)
         if verify_log and verify_log["Status"] in ["Created", "Retrying"]:
-          logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求已超时。")
-          await self.update_verify_log_status(verify_log["SQLID"], "Expired")
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求已超时。")
+            await self.update_verify_log_status(verify_log["SQLID"], "Expired")
         else:
-          logger.debug(f"用户 {user_qq_id} 已完成验证请求，结束超时检查任务。")
+            logger.debug(f"用户 {user_qq_id} 已完成验证请求，结束超时检查任务。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("finish")
