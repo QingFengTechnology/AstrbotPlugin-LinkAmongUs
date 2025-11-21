@@ -530,8 +530,20 @@ class LinkAmongUs(Star):
             logger.debug(f"用户 {user_qq_id} 已完成验证请求，结束超时检查任务。")
         except Exception as e:
           logger.error(f"[LinkAmongUs] 超时检查任务发生意外错误：{e}")
-          errorMessageChain = []
-          await self.context.send_message(umo, )
+          try: 
+            errorMessageChain = [
+              Comp.Plain("发生意外错误，请联系管理员。\n插件将尝试直接取消你的验证请求，如未正常工作，请发送 /verify cancel 命令。")
+            ]
+            await self.context.send_message(umo, errorMessageChain)
+          except Exception as e:
+            logger.warning(f"[LinkAmongUs] 发送错误消息失败: {e}")
+            logger.warning(f"[LinkAmongUs] 将忽略错误，将继续取消用户 {user_qq_id} 的验证请求。")
+          try:
+            verify_log = await self.get_active_verify_request(user_qq_id)
+            await self.update_verify_log_status(verify_log["SQLID"], "Cancelled")
+            logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求因内部错误被取消。")
+          except Exception as e:
+            logger.error(f"[LinkAmongUs] 取消用户 {user_qq_id} 的验证请求时发生意外错误：{e}")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("finish")
