@@ -4,15 +4,15 @@ from typing import Optional, Dict, Any
 from astrbot.api import logger
 
 async def request_verify_api(session: aiohttp.ClientSession, api_endpoint: str, api_timeout: int, method: str, api_key: str, **kwargs) -> Optional[Dict[str, Any]]:
-    """整合的API验证请求函数，所有请求 API 的操作都应该使用此函数。
+    """向 Nmpostor Verify API 发送请求，所有请求 API 的操作都应该使用此函数。
     
     Args:
-        session: aiohttp 会话对象
-        api_endpoint: API 端点地址
-        api_timeout: API 请求超时时间
-        method: 请求使用的 HTTP 方法，选值为'PUT', 'GET', 'DELETE'。
+        session: aiohttp 会话对象。
+        api_endpoint: API 端点地址。
+        api_timeout: API 请求超时时间。
+        method: 请求使用的 HTTP 方法，选值为`PUT`, `GET`, `DELETE`。
         api_key: 请求使用的 API 密钥。
-        **kwargs: 额外参数。method 不同，提供的参数也不同：GET 和 DELETE 需要verify_code；PUT 需要 friend_code。
+        **kwargs: 提供的额外参数。`method` 不同，提供的参数也不同：`GET` 和 `DELETE` 需要提供 `verify_code`；`PUT` 需要提供 `friend_code`。
     """
     url = f"{api_endpoint}/api/verify"
     try:
