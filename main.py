@@ -921,7 +921,7 @@ class LinkAmongUs(Star):
         # 筛选事件
         if raw_message.get("post_type") != "notice":
             return
-        if raw_message.get("notice_type") != "group_increase":
+        if raw_message.get("notice_type") != "group_decrease":
             return
         if not await self.whitelist_check(event):
             return
