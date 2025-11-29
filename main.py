@@ -452,7 +452,7 @@ class LinkAmongUs(Star):
                     f"验证成功！已将 {user_data['UserAmongUsName']}({user_data['UserFriendCode']}) 关联 QQ {user_data['UserQQID']}。"
                 )
                 logger.info(f"[LinkAmongUs] 成功将用户 {user_qq_id} 关联好友代码 {user_data['UserFriendCode']}。")
-                yield event.plain_result(success_message)
+                yield event.send_message(success_message)
             else:
                 logger.error(f"[LinkAmongUs] 用户 {user_qq_id} 验证数据写入失败。")
                 yield event.plain_result("验证失败，数据库写入异常，请联系管理员。")
@@ -463,6 +463,45 @@ class LinkAmongUs(Star):
         else:
             logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 验证请求状态 {verify_status} 非法，拒绝完成验证请求。")
             yield event.plain_result(f"验证失败，你的验证请求状态非法，请联系管理员。")
+
+        # 自动解除入群验证禁言
+        try:
+            async with self.db_pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        "SELECT SQLID, BanGroupID FROM VerifyGroupLog WHERE VerifyUserID = %s AND Status = %s",
+                        (user_qq_id, "Banned")
+                    )
+
+                    banned_logs = await cursor.fetchall()
+                    if not banned_logs:
+                        logger.info(f"[LinkAmongUs] 未找到用户 {user_qq_id} 进行中的入群验证，跳过自动完成。")
+                        return
+
+                    unbanned_groups = []
+                    for log in banned_logs:
+                        log_id = log[0]
+                        group_id = log[1]
+                        try:
+                            from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+                            assert isinstance(event, AiocqhttpMessageEvent)
+                            await event.bot.set_group_ban(
+                                group_id=int(group_id),
+                                user_id=int(user_qq_id),
+                                duration=0
+                            )
+                            logger.debug(f"[LinkAmongUs] 已解除用户 {user_qq_id} 在群 {group_id} 的禁言。")
+                            unbanned_groups.append(group_id)
+                            await cursor.execute(
+                                "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
+                                ("Unbanned", log_id)
+                            )
+                        except Exception as e:
+                            logger.error(f"[LinkAmongUs] 解除用户 {user_qq_id} 在群 {group_id} 的禁言时发生意外错误: {e}")
+                        yield event.plain_result("已尝试自动解除你的入群验证禁言，如不生效请联系群聊管理员手动解除。")
+        except Exception as e:
+            logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 入群验证禁言时发生意外错误: {e}")
+            yield event.plain_result("尝试自动处理入群验证禁言时发生意外错误，请联系管理员。")          
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.permission_type(filter.PermissionType.ADMIN)
@@ -644,70 +683,6 @@ class LinkAmongUs(Star):
         if not await self.whitelist_check(event):
             return
         yield event.plain_result(self.help_menu)
-
-    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
-    # 只允许私聊
-    @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
-    @verify.command("unban")
-    async def verify_unban(self, event: AstrMessageEvent):
-        """尝试解除入群验证禁言"""
-        if not await self.whitelist_check(event):
-            return
-            
-        user_qq_id = event.get_sender_id()
-        logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求解除入群验证禁言。")
-        
-        # 检查用户是否已关联账号
-        existing_user = await database_manage(self.db_pool, "check_user_exists", user_qq_id=user_qq_id)
-        if not existing_user:
-            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未关联账号，拒绝解除禁言。")
-            yield event.plain_result("解除禁言失败，你还未进行账号关联。")
-            return
-            
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 未能查询入群验证日志：数据库连接池未初始化。")
-            yield event.plain_result("解除禁言失败，数据库连接池未初始化。")
-            return
-            
-        try:
-            async with self.db_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(
-                        "SELECT SQLID, BanGroupID FROM VerifyGroupLog WHERE VerifyUserID = %s AND Status = %s",
-                        (user_qq_id, "Banned")
-                    )
-
-                    banned_logs = await cursor.fetchall()
-                    if not banned_logs:
-                        logger.info(f"[LinkAmongUs] 未找到用户 {user_qq_id} 的入群验证禁言记录。")
-                        yield event.plain_result("未找到你正在进行中的入群验证。\n如果确实仍在被禁言，请联系对应群聊的管理员手动解禁。")
-                        return
-
-                    unbanned_groups = []
-                    for log in banned_logs:
-                        log_id = log[0]
-                        group_id = log[1]
-                        try:
-                            from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-                            assert isinstance(event, AiocqhttpMessageEvent)
-                            await event.bot.set_group_ban(
-                                group_id=int(group_id),
-                                user_id=int(user_qq_id),
-                                duration=0
-                            )
-                            logger.debug(f"[LinkAmongUs] 已解除用户 {user_qq_id} 在群 {group_id} 的禁言。")
-                            unbanned_groups.append(group_id)
-                            await cursor.execute(
-                                "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
-                                ("Unbanned", log_id)
-                            )
-                        except Exception as e:
-                            logger.error(f"[LinkAmongUs] 解除用户 {user_qq_id} 在群 {group_id} 的禁言时发生意外错误: {e}")
-                        yield event.plain_result("已尝试解除你的入群验证禁言，如不生效请联系群聊管理员手动解除。")
-                        
-        except Exception as e:
-            logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 的解除禁言请求时发生错误: {e}")
-            yield event.plain_result("解除禁言失败，发生意外错误，请联系管理员。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.event_message_type(filter.EventMessageType.ALL)
