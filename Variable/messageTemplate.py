@@ -20,10 +20,6 @@ Args:
 /verify info - 查询您的绑定信息。
 - 显示您当前绑定的 Among Us 角色名、好友代码和绑定时间。
 
-@MessageType.PRIVATE
-/verify unban - 解除入群验证禁言。
-- 在你完成账号关联后需要通过此命令来解除入群验证的禁言。
-
 @PermissionType.ADMIN
 /verify query <QQID|FriendCode> - 查询指定用户的账号关联信息。
 Args:
