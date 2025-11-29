@@ -12,7 +12,7 @@ from astrbot.core.message.message_event_result import MessageChain
 
 from .Variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
 from .Variable.messageTemplate import help_menu, new_user_join
-from api import database_manage
+from .api import request_verify_api, database_manage
 
 class LinkAmongUs(Star):
     def __init__(self, context: Context, config: AstrBotConfig): # AstrBotConfig 继承自 Dict，拥有字典的所有方法。
@@ -242,7 +242,6 @@ class LinkAmongUs(Star):
         # 创建验证请求
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用 Among Us 账号 {friend_code} 创建了一个验证请求。")
         api_key = self.APIConfig_Key
-        from .api import request_verify_api, database_manage
         api_response = await request_verify_api(
             session=self.session,
             api_endpoint=self.APIConfig_EndPoint,
@@ -371,7 +370,6 @@ class LinkAmongUs(Star):
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求完成验证。")
         # 查询验证状态
         api_key = self.APIConfig_Key
-        from .api import request_verify_api
         api_response = await request_verify_api(
             session=self.session,
             api_endpoint=self.APIConfig_EndPoint,
@@ -624,7 +622,6 @@ class LinkAmongUs(Star):
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求取消验证请求。")
         api_key = self.APIConfig_Key
         verify_code = verify_log["VerifyCode"]
-        from .api import request_verify_api
         delete_success = await request_verify_api(
             session=self.session,
             api_endpoint=self.APIConfig_EndPoint,
