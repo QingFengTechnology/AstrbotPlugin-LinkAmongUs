@@ -2,14 +2,17 @@
 
 ![AstrbotPlugin-LinkAmongUs](https://socialify.git.ci/QingFengTechnology/AstrbotPlugin-LinkAmongUs/image?description=1&font=KoHo&language=1&name=1&pattern=Solid&theme=Auto)
 
-## 功能
+本插件旨在提供一个方法允许玩家使用他的 Among Us 账号与 QQ 号进行关联（写入插件的数据库），以达到防止机器人等的目的。
 
-- 创建和完成验证请求
-- 查询某个账号是否关联
-- 数据库存储验证信息
-- 黑白名单管理
-- 超时提醒与过期处理机制
-- 入群验证
+## 前置
+
+- Astrbot 4.5.0+
+- Nmpostor 1.0.15+
+- MySQL 8.x
+
+> [!Note]
+> 此处的 Nmpostor 指 [Impostor NikoCat233 Edition](https://au.niko233.me/cn.html)，并非开源的 Impostor 哦。\
+> 由于 Impostor 没有我们所需的 API，因此我们不会考虑对 Impostor 进行适配。
 
 ## 安装
 
@@ -25,5 +28,5 @@
 > [!Warning]
 > 此处填写的密码不会被加密处理，因此不建议使用 root 用户。
 
-随后根据自身需求填写剩下的配置，保存并重载即可。\n
+随后根据自身需求填写剩下的配置，保存并重载即可。\
 要查看插件命令帮助，请发送`/verify help`命令。
