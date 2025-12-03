@@ -819,6 +819,29 @@ class LinkAmongUs(Star):
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 退群 {group_id} 事件时发生错误: {e}")
 
+    async def group_ban_lift_ban(self, event: AstrMessageEvent):
+        """防止入群验证成员被解除禁言"""
+        if not self.GroupVerifyConfig_NewMemberNeedVerify:
+            return
+        # 筛选消息
+        if not hasattr(event, "message_obj") or not hasattr(event.message_obj, "raw_message"):
+            return
+        raw_message = event.message_obj.raw_message
+        if not raw_message or not isinstance(raw_message, dict):
+            return
+
+        # 筛选事件
+        if raw_message.get("post_type") != "notice":
+            return
+        if raw_message.get("notice_type") != "group_ban":
+            return
+        if raw_message.get("sub_type") != "lift_ban":
+            return
+        if not await self.whitelist_check(event):
+            return
+
+        pass
+
     async def scheduled_kick_unverified_users(self, event: AstrMessageEvent):
         """定时任务：检查并踢出未验证的用户"""
         logger.info("[LinkAmongUs] 已启动未验证成员超时检查。")
