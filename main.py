@@ -1,7 +1,6 @@
 import asyncio
 import aiohttp
 import aiomysql
-from typing import Optional, Dict, Any
 from datetime import datetime
 
 import astrbot.api.message_components as Comp
@@ -10,9 +9,10 @@ from astrbot.api.star import Context, Star
 from astrbot.api import logger, AstrBotConfig
 from astrbot.core.message.message_event_result import MessageChain
 
-from .Variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
-from .Variable.messageTemplate import help_menu, new_user_join
-from .api import request_verify_api, database_manage
+from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
+from .variable.messageTemplate import help_menu, new_user_join
+from .function.api.databaseManage import database_manage
+from function.api.verifyRequest import request_verify_api
 
 class LinkAmongUs(Star):
     def __init__(self, context: Context, config: AstrBotConfig): # AstrBotConfig 继承自 Dict，拥有字典的所有方法。
