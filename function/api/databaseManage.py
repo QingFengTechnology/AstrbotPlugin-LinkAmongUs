@@ -1,140 +1,254 @@
+from typing import Any, Dict
 import aiomysql
-from typing import Optional, Any
 from astrbot.api import logger
 
-async def database_manage(db_pool: aiomysql.Pool, operation: str, **kwargs) -> Optional[Any]:
-    """对 MySQL 数据库进行操作。
+async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, latest: bool = False, **kwargs) -> Dict[str, Any]:
+    """对 MySQL 数据库进行统一操作。
     
     Args:
         db_pool: 数据库连接池。
-        operation: 要执行的操作，可选值：
-            - check_user_exists: 检查用户QQ号是否已存在于数据库
-            - check_friend_code_exists: 检查好友代码是否已存在于数据库
-            - get_active_verify_request: 获取用户最新的进行中的验证请求
-            - update_verify_log_status: 更新验证日志状态
-            - insert_verify_user_data: 写入用户身份数据
-        **kwargs: 根据不同操作提供相应的参数。
+        table: 要操作的MySQL数据表名，可选值为 `VerifyUserData`、`VerifyLog`、`VerifyGroupLog`。
+        method: 操作数据库的方法，可选值为 `get`、`update`、`insert`。
+        latest: 仅 `method` 为 `get` 时有效，是否只返回最新的一条数据。
+        **kwargs: 根据不同操作和表提供相应的参数：
+            对于 VerifyUserData 表：
+                - get: `user_qq_id` (str)
+                - update: `user_qq_id` (str), `user_data` (dict)
+                - insert: `user_data` (dict)
+            对于 VerifyLog 表：
+                - get: `user_qq_id` (str)
+                - update: `sql_id` (int), `status` (str)
+                - insert: `user_qq_id` (str), `friend_code` (str), `verify_code` (str), `status` (str, 默认 Created)
+            对于 VerifyGroupLog 表：
+                - get: `user_qq_id` (str)
+                - update: `sql_id` (int), `status` (str) 
+                - insert: `user_qq_id` (str), `group_id` (str), `status` (str, 默认 Created)
+    
+    Returns:
+        Dict[str, Any]: 操作结果字典，包含：
+            - success: bool，操作是否成功
+            - data: Any，仅 `method` 为 `get` 时才会有内容，返回的数据对象。对于其他方法返回 `None`。
+            - message: str | None，发生错误时返回的信息。操作成功返回 `None`。
     """
     if not db_pool:
         logger.error("[LinkAmongUs] 数据库操作失败：数据库连接池未初始化。")
-        return None
+        return {"success": False, "data": None, "message": "数据库连接池未初始化"}
 
     try:
         async with db_pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                if operation == "check_user_exists":
-                    # 检查用户QQ号是否已存在于数据库
-                    user_qq_id = kwargs.get('user_qq_id')
-                    if not user_qq_id:
-                        logger.error("[LinkAmongUs] 检查用户是否存在需要用户QQ号，但调用方法时未提供此参数。")
-                        return None
-                    
-                    logger.info(f"[LinkAmongUs] 正在验证用户 {user_qq_id} 是否已关联 Among Us 账号。")
-                    await cursor.execute(
-                        "SELECT * FROM VerifyUserData WHERE UserQQID = %s",
-                        (user_qq_id,)
-                    )
-                    result = await cursor.fetchone()
-                    if result:
-                        columns = [desc[0] for desc in cursor.description]
-                        result_dict = dict(zip(columns, result))
-                        friend_code = result_dict.get('UserFriendCode')
-                        logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 已关联 Among Us 账号 {friend_code}。")
-                        return result_dict
-                    logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未关联 Among Us 账号。")
-                    return None
-
-                elif operation == "check_friend_code_exists":
-                    # 检查好友代码是否已存在于数据库
-                    friend_code = kwargs.get('friend_code')
-                    if not friend_code:
-                        logger.error("[LinkAmongUs] 检查好友代码是否存在需要好友代码，但调用方法时未提供此参数。")
-                        return None
-                    
-                    logger.info(f"[LinkAmongUs] 正在验证好友代码 {friend_code} 是否已关联 QQ 号。")
-                    await cursor.execute(
-                        "SELECT * FROM VerifyUserData WHERE UserFriendCode = %s",
-                        (friend_code,)
-                    )
-                    result = await cursor.fetchone()
-                    if result:
-                        columns = [desc[0] for desc in cursor.description]
-                        result_dict = dict(zip(columns, result))
-                        qq_id = result_dict.get('UserQQID')
-                        logger.info(f"[LinkAmongUs] 好友代码 {friend_code} 已关联 QQ 号 {qq_id}。")
-                        return result_dict
-                    logger.info(f"[LinkAmongUs] 好友代码 {friend_code} 尚未关联 QQ 号。")
-                    return None
-
-                elif operation == "get_active_verify_request":
-                    # 获取用户最新的进行中的验证请求
-                    user_qq_id = kwargs.get('user_qq_id')
-                    if not user_qq_id:
-                        logger.error("[LinkAmongUs] 获取活跃验证请求需要用户QQ号，但调用方法时未提供此参数。")
-                        return None
-                    
-                    logger.info(f"[LinkAmongUs] 正在获取用户 {user_qq_id} 最新的进行中的验证请求。")
-                    await cursor.execute(
-                        "SELECT * FROM VerifyLog WHERE UserQQID = %s AND Status IN ('Created', 'Retrying') ORDER BY CreateTime DESC LIMIT 1",
-                        (user_qq_id,)
-                    )
-                    result = await cursor.fetchone()
-                    if result:
-                        columns = [desc[0] for desc in cursor.description]
-                        logger.info(f"[LinkAmongUs] 已找到用户 {user_qq_id} 的最新活跃验证请求。")
-                        return dict(zip(columns, result))
-                    logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求。")
-                    return None
-
-                elif operation == "update_verify_log_status":
-                    # 更新验证日志状态
-                    sql_id = kwargs.get('sql_id')
-                    status = kwargs.get('status')
-                    if not sql_id or not status:
-                        logger.error("[LinkAmongUs] 更新验证日志状态需要SQL ID和状态，但调用方法时未提供这些参数。")
-                        return False
-                    
-                    logger.info(f"[LinkAmongUs] 正在将 ID {sql_id} 的验证日志状态更新为 {status}。")
-                    await cursor.execute(
-                        "UPDATE VerifyLog SET Status = %s WHERE SQLID = %s",
-                        (status, sql_id)
-                    )
-                    logger.info(f"[LinkAmongUs] 已将 ID {sql_id} 的验证日志更新为 {status}。")
-                    return True
-
-                elif operation == "insert_verify_user_data":
-                    # 写入用户身份数据
-                    user_data = kwargs.get('user_data')
-                    if not user_data:
-                        logger.error("[LinkAmongUs] 插入用户身份数据需要用户数据，但调用方法时未提供此参数。")
-                        return False
-                    
-                    logger.info(f"[LinkAmongUs] 准备写入用户 {user_data.get('UserQQID')}({user_data.get('UserFriendCode')}) 的身份数据。")
-                    await cursor.execute(
-                        """INSERT INTO VerifyUserData 
-                        (UserQQName, UserQQID, UserAmongUsName, UserFriendCode, UserPuid, 
-                        UserHashedPuid, UserUdpPlatform, UserTokenPlatform, UserUdpIP, UserHttpIP) 
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                        (
-                            user_data.get("UserQQName"),
-                            user_data.get("UserQQID"),
-                            user_data.get("UserAmongUsName"),
-                            user_data.get("UserFriendCode"),
-                            user_data.get("UserPuid"),
-                            user_data.get("UserHashedPuid"),
-                            user_data.get("UserUdpPlatform"),
-                            user_data.get("UserTokenPlatform"),
-                            user_data.get("UserUdpIP"),
-                            user_data.get("UserHttpIP")
-                        )
-                    )
-                    logger.info(f"[LinkAmongUs] 成功写入用户 {user_data.get('UserQQID')} 的身份验证数据。")
-                    return True
-
+                if table == "VerifyUserData":
+                    return await _handle_verify_user_data(cursor, method, latest, **kwargs)
+                elif table == "VerifyLog":
+                    return await _handle_verify_log(cursor, method, latest, **kwargs)
+                elif table == "VerifyGroupLog":
+                    return await _handle_verify_group_log(cursor, method, latest, **kwargs)
                 else:
-                    logger.error(f"[LinkAmongUs] 程序尝试执行数据库操作 {operation}，但函数尚不支持该操作。")
-                    return None
+                    logger.error(f"[LinkAmongUs] 插件尝试操作数据表 {table}，但 API 尚不支持或数据表不存在。")
+                    return {"success": False, "data": None, "message": "目标数据表非法"}
 
     except Exception as e:
-        logger.error(f"[LinkAmongUs] 执行数据库操作 {operation} 时发生错误: {e}")
-        return None if operation not in ["update_verify_log_status", "insert_verify_user_data"] else False
+        logger.error(f"[LinkAmongUs] 执行数据库操作时发生意外错误: {e}")
+        return {"success": False, "data": None, "message": "发生意外错误"}
+
+async def _handle_verify_user_data(cursor, method: str, latest: bool, **kwargs) -> Dict[str, Any]:
+    """处理 VerifyUserData 表的操作"""
+    try:
+        if method == "get":
+            user_qq_id = kwargs.get('user_qq_id')
+            if not user_qq_id:
+                logger.error("[LinkAmongUs] 插件尝试查询用户身份数据，但未提供 user_qq_id 参数。")
+                return {"success": False, "data": None, "message": "参数 user_qq_id 缺失"}
+            logger.debug(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的身份数据。")
+            await cursor.execute(
+                "SELECT * FROM VerifyUserData WHERE UserQQID = %s",
+                (user_qq_id,)
+            )
+            result = await cursor.fetchone()
+            if result:
+                columns = [desc[0] for desc in cursor.description]
+                result_dict = dict(zip(columns, result))
+                logger.debug(f"[LinkAmongUs] 成功查询用户 {user_qq_id} 的身份数据。")
+                return {"success": True, "data": result_dict, "message": None}
+            logger.debug(f"[LinkAmongUs] 未查询到用户 {user_qq_id} 的身份数据。")
+            return {"success": True, "data": None, "message": None}
+
+        elif method == "update":
+            user_qq_id = kwargs.get('user_qq_id')
+            user_data = kwargs.get('user_data')
+            if not user_qq_id or not user_data:
+                logger.error("[LinkAmongUs] 插件尝试更新用户身份数据，但未提供 user_qq_id 或 user_data 参数。")
+                return {"success": False, "data": None, "message": "参数 user_qq_id 或 user_data 缺失"}
+            
+            logger.debug(f"[LinkAmongUs] 正在更新用户 {user_qq_id} 的身份数据。")
+            set_clause = ", ".join([f"{key} = %s" for key in user_data.keys()])
+            values = list(user_data.values()) + [user_qq_id]
+            await cursor.execute(
+                f"UPDATE VerifyUserData SET {set_clause} WHERE UserQQID = %s",
+                values
+            )
+            logger.debug(f"[LinkAmongUs] 成功更新用户 {user_qq_id} 的身份数据。")
+            return {"success": True, "data": None, "message": None}
+
+        elif method == "insert":
+            user_data = kwargs.get('user_data')
+            if not user_data:
+                logger.error("[LinkAmongUs] 插件尝试写入用户身份数据，但未提供 user_data 参数。")
+                return {"success": False, "data": None, "message": "参数 user_data 缺失"}
+            
+            logger.debug(f"[LinkAmongUs] 正在写入用户 {user_data.get('UserQQID')} 的身份数据。")
+            columns = ", ".join(user_data.keys())
+            placeholders = ", ".join(["%s"] * len(user_data))
+            values = list(user_data.values())
+            await cursor.execute(
+                f"INSERT INTO VerifyUserData ({columns}) VALUES ({placeholders})",
+                values
+            )
+            logger.debug(f"[LinkAmongUs] 成功写入用户 {user_data.get('UserQQID')} 的身份数据。")
+            return {"success": True, "data": None, "message": None}
+
+        else:
+            logger.error(f"[LinkAmongUs] 插件尝试操作数据表 VerifyUserData，但使用的请求方法 API 尚不支持。")
+            return {"success": False, "data": None, "message": "不支持的请求方法"}
+
+    except Exception as e:
+        logger.error(f"[LinkAmongUs] 处理 VerifyUserData 表操作时发生错误: {e}")
+        return {"success": False, "data": None, "message": "发生意外错误"}
+
+async def _handle_verify_log(cursor, method: str, latest: bool, **kwargs) -> Dict[str, Any]:
+    """处理 VerifyLog 表的操作"""
+    try:
+        if method == "get":
+            user_qq_id = kwargs.get('user_qq_id')
+            if user_qq_id:
+                logger.debug(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的验证日志。")
+                if latest:
+                    await cursor.execute(
+                        "SELECT * FROM VerifyLog WHERE UserQQID = %s ORDER BY CreateTime DESC LIMIT 1",
+                        (user_qq_id,)
+                    )
+                else:
+                    await cursor.execute(
+                        "SELECT * FROM VerifyLog WHERE UserQQID = %s",
+                        (user_qq_id,)
+                    )
+                result = await cursor.fetchone()
+                if result:
+                    columns = [desc[0] for desc in cursor.description]
+                    result_dict = dict(zip(columns, result))
+                    logger.debug(f"[LinkAmongUs] 成功查询到用户 {user_qq_id} 的验证日志。")
+                    return {"success": True, "data": result_dict, "message": None}
+                logger.debug(f"[LinkAmongUs] 未查询到用户 {user_qq_id} 的验证日志。")
+                return {"success": True, "data": None, "message": None}
+            else:
+                logger.error("[LinkAmongUs] 插件尝试查询用户验证日志，但未提供 user_qq_id 参数。")
+                return {"success": False, "data": None, "message": "参数 user_qq_id 缺失"}
+
+        elif method == "update":
+            sql_id = kwargs.get('sql_id')
+            status = kwargs.get('status')
+            if not sql_id or not status:
+                logger.error("[LinkAmongUs] 插件尝试更新验证日志状态，但未提供 sql_id 或 status 参数。")
+                return {"success": False, "data": None, "message": "参数 sql_id 或 status 缺失"}
+            
+            logger.debug(f"[LinkAmongUs] 正在更新验证日志 {sql_id} 的状态为 {status}。")
+            await cursor.execute(
+                "UPDATE VerifyLog SET Status = %s WHERE SQLID = %s",
+                (status, sql_id)
+            )
+            logger.debug(f"[LinkAmongUs] 成功更新验证日志 {sql_id} 的状态为 {status}。")
+            return {"success": True, "data": None, "message": None}
+
+        elif method == "insert":
+            user_qq_id = kwargs.get('user_qq_id')
+            friend_code = kwargs.get('friend_code')
+            verify_code = kwargs.get('verify_code')
+            status = kwargs.get('status', 'Created')
+            
+            if not user_qq_id or not friend_code or not verify_code:
+                logger.error("[LinkAmongUs] 插件尝试写入用户验证日志，但未提供 user_qq_id、friend_code 或 verify_code 参数。")
+                return {"success": False, "data": None, "message": "参数 user_qq_id 或 friend_code 或 verify_code 缺失"}
+            
+            logger.debug(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的验证日志。")
+            await cursor.execute(
+                "INSERT INTO VerifyLog (Status, UserQQID, UserFriendCode, VerifyCode) VALUES (%s, %s, %s, %s)",
+                (status, user_qq_id, friend_code, verify_code)
+            )
+            logger.debug(f"[LinkAmongUs] 成功写入用户 {user_qq_id} 的验证日志。")
+            return {"success": True, "data": None, "message": None}
+
+        else:
+            logger.error(f"[LinkAmongUs] 插件尝试操作数据表 VerifyLog，但使用的请求方法 API 尚不支持。")
+            return {"success": False, "data": None, "message": f"不支持的请求方法"}
+
+    except Exception as e:
+        logger.error(f"[LinkAmongUs] 处理 VerifyLog 表操作时发生错误: {e}")
+        return {"success": False, "data": None, "message": "发生意外错误"}
+
+async def _handle_verify_group_log(cursor, method: str, latest: bool, **kwargs) -> Dict[str, Any]:
+    """处理 VerifyGroupLog 表的操作"""
+    try:
+        if method == "get":
+            user_qq_id = kwargs.get('user_qq_id')
+            if user_qq_id:
+                logger.debug(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的入群验证日志。")
+                if latest:
+                    await cursor.execute(
+                        "SELECT * FROM VerifyGroupLog WHERE VerifyUserID = %s ORDER BY CreateTime DESC LIMIT 1",
+                        (user_qq_id,)
+                    )
+                else:
+                    await cursor.execute(
+                        "SELECT * FROM VerifyGroupLog WHERE VerifyUserID = %s",
+                        (user_qq_id,)
+                    )
+                result = await cursor.fetchone()
+                if result:
+                    columns = [desc[0] for desc in cursor.description]
+                    result_dict = dict(zip(columns, result))
+                    logger.debug(f"[LinkAmongUs] 成功查询到用户 {user_qq_id} 的入群验证日志。")
+                    return {"success": True, "data": result_dict, "message": None}
+                logger.debug(f"[LinkAmongUs] 未查询到用户 {user_qq_id} 的入群验证日志。")
+                return {"success": True, "data": None, "message": None}
+            else:
+                logger.error("[LinkAmongUs] 插件尝试查询用户入群验证日志，但未提供 user_qq_id 参数。")
+                return {"success": False, "data": None, "message": "参数 user_qq_id 缺失"}
+
+        elif method == "update":
+            sql_id = kwargs.get('sql_id')
+            status = kwargs.get('status')
+            if not sql_id or not status:
+                logger.error("[LinkAmongUs] 插件尝试更新入群验证日志状态，但未提供 sql_id 或 status 参数。")
+                return {"success": False, "data": None, "message": "参数 sql_id 或 status 缺失"}
+            
+            logger.debug(f"[LinkAmongUs] 正在更新入群验证日志 {sql_id} 的状态为 {status}。")
+            await cursor.execute(
+                "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
+                (status, sql_id)
+            )
+            logger.debug(f"[LinkAmongUs] 成功更新入群验证日志 {sql_id} 的状态为 {status}。")
+            return {"success": True, "data": None, "message": None}
+
+        elif method == "insert":
+            user_qq_id = kwargs.get('user_qq_id')
+            group_id = kwargs.get('group_id')
+            status = kwargs.get('status', 'Created')
+            
+            if not user_qq_id or not group_id:
+                return {"success": False, "data": None, "message": "参数 user_qq_id 或 group_id 缺失"}
+            
+            logger.debug(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的群组验证日志。")
+            await cursor.execute(
+                "INSERT INTO VerifyGroupLog (Status, VerifyUserID, BanGroupID, KickTime) VALUES (%s, %s, %s, NOW())",
+                (status, user_qq_id, group_id)
+            )
+            logger.debug(f"[LinkAmongUs] 成功写入用户 {user_qq_id} 的入群验证日志。")
+            return {"success": True, "data": None, "message": None}
+
+        else:
+            logger.error(f"[LinkAmongUs] 插件尝试操作数据表 VerifyGroupLog，但使用的请求方法 API 尚不支持。")
+            return {"success": False, "data": None, "message": "不支持的操作方法"}
+
+    except Exception as e:
+        logger.error(f"[LinkAmongUs] 处理 VerifyGroupLog 表操作时发生错误: {e}")
+        return {"success": False, "data": None, "message": "发生意外错误"}

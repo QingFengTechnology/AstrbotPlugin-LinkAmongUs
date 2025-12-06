@@ -114,30 +114,33 @@ class LinkAmongUs(Star):
         # 数据表完整性校验
         logger.debug("[LinkAmongUs] 正在进行数据表完整性校验。")
         required_tables = REQUEID_TABLES
-        async with self.db_pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                # 检查每个表是否存在
-                for table_name in required_tables:
-                    await cursor.execute(
-                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
-                        (table_name,)
-                    )
-                    result = await cursor.fetchone()
-                    if result[0] == 0:
-                        logger.debug(f"[LinkAmongUs] 数据表 {table_name} 不存在，正在创建...")
-                        try:
-                            if table_name == "VerifyUserData":
-                                await cursor.execute(VERIFY_USER_DATA)
-                            elif table_name == "VerifyLog":
-                                await cursor.execute(VERIFY_LOG)
-                            elif table_name == "VerifyGroupLog":
-                                await cursor.execute(VERIFY_GROUP_LOG)
-                            logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
-                        except Exception as e:
-                            logger.fatal(f"[LinkAmongUs] 创建数据表 {table_name} 时发生意外错误: {e}")
-                            raise aiomysql.MySQLError("创建数据表时发生意外错误。")
+        
+        # 检查每个表是否存在，不存在则创建
+        for table_name in required_tables:
+            check_result = await database_manage(self.db_pool, None, "check_table_exists", table_name=table_name)
+            if not check_result["success"]:
+                logger.error(f"[LinkAmongUs] 检查数据表 {table_name} 是否存在时发生错误: {check_result['message']}")
+                continue
+                
+            if not check_result["data"]["exists"]:
+                logger.debug(f"[LinkAmongUs] 数据表 {table_name} 不存在，正在创建...")
+                try:
+                    if table_name == "VerifyUserData":
+                        create_result = await database_manage(self.db_pool, None, "create_table", table_definition=VERIFY_USER_DATA)
+                    elif table_name == "VerifyLog":
+                        create_result = await database_manage(self.db_pool, None, "create_table", table_definition=VERIFY_LOG)
+                    elif table_name == "VerifyGroupLog":
+                        create_result = await database_manage(self.db_pool, None, "create_table", table_definition=VERIFY_GROUP_LOG)
+                        
+                    if create_result["success"]:
+                        logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
                     else:
-                        logger.debug(f"[LinkAmongUs] 数据表 {table_name} 已存在。")
+                        logger.error(f"[LinkAmongUs] 创建数据表 {table_name} 时发生错误: {create_result['message']}")
+                except Exception as e:
+                    logger.fatal(f"[LinkAmongUs] 创建数据表 {table_name} 时发生意外错误: {e}")
+                    raise Exception("创建数据表时发生意外错误。")
+            else:
+                logger.debug(f"[LinkAmongUs] 数据表 {table_name} 已存在。")
         
         # 创建HTTP会话
         self.session = aiohttp.ClientSession()
@@ -206,25 +209,35 @@ class LinkAmongUs(Star):
             return
 
         # 检查用户是否已关联账号
-        existing_user = await database_manage(self.db_pool, "check_user_exists", user_qq_id=user_qq_id)
-        if existing_user:
+        user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
+        if user_check["success"] and user_check["data"]:
+            existing_user = user_check["data"]
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 已绑定 Among Us 账号 {existing_user['UserFriendCode']}，拒绝创建验证请求。")
             yield event.plain_result(
                 f"创建验证请求失败，你的账号已绑定 {existing_user['UserFriendCode']}。\n"
                 f"若要更换，请联系管理员。"
             )
             return
-        existing_friend_code = await database_manage(self.db_pool, "check_friend_code_exists", friend_code=friend_code)
-        if existing_friend_code:
-            logger.warning(f"[LinkAmongUs] 用户使用的好友代码已绑定 QQ号 {existing_friend_code['UserQQID']}，拒绝创建验证请求。")
-            yield event.plain_result(
-                f"创建验证请求失败，该好友代码已绑定 {existing_friend_code['UserQQID']}。\n"
-                f"若要更换，请联系管理员。"
-            )
-            return
+        
+        # 检查好友代码是否已存在
+        friend_code_check = await database_manage(self.db_pool, "VerifyUserData", "get")
+        if friend_code_check["success"] and friend_code_check["data"]:
+            if isinstance(friend_code_check["data"], list):
+                existing_friend_codes = [item['UserFriendCode'] for item in friend_code_check["data"] if item.get('UserFriendCode') == friend_code]
+            else:
+                existing_friend_codes = [friend_code_check["data"].get('UserFriendCode')] if friend_code_check["data"].get('UserFriendCode') == friend_code else []
+            
+            if friend_code in existing_friend_codes:
+                logger.warning(f"[LinkAmongUs] 用户使用的好友代码已绑定，拒绝创建验证请求。")
+                yield event.plain_result(
+                    f"创建验证请求失败，该好友代码已绑定。\n"
+                    f"若要更换，请联系管理员。"
+                )
+                return
 
         # 检查用户是否有进行中的验证请求
-        active_verify_request = await database_manage(self.db_pool, "get_active_verify_request", user_qq_id=user_qq_id)
+        active_verify_request_result = await database_manage(self.db_pool, "VerifyLog", "get", latest=True, user_qq_id=user_qq_id)
+        active_verify_request = active_verify_request_result["data"] if active_verify_request_result["success"] and active_verify_request_result["data"] else None
         if active_verify_request:
             status = active_verify_request["Status"]
             create_time = active_verify_request["CreateTime"]
@@ -258,22 +271,21 @@ class LinkAmongUs(Star):
         # 写入验证日志
         verify_code = api_response["VerifyCode"]
         logger.info(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的验证日志。")
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 未能写入验证日志：数据库连接池未初始化。")
-            yield event.plain_result("创建验证请求失败，数据库连接池未初始化，请联系管理员。")
-            return
-        try:
-            async with self.db_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(
-                        "INSERT INTO VerifyLog (Status, UserQQID, UserFriendCode, VerifyCode) VALUES (%s, %s, %s, %s)",
-                        ("Created", user_qq_id, friend_code, verify_code)
-                    )
-                    logger.info(f"[LinkAmongUs] 成功写入用户 {user_qq_id} 的验证日志。")
-        except Exception as e:
-            logger.error(f"[LinkAmongUs] 写入验证日志时发生错误: {e}")
+        
+        log_data = {
+            "Status": "Created",
+            "UserQQID": user_qq_id,
+            "UserFriendCode": friend_code,
+            "VerifyCode": verify_code
+        }
+        
+        insert_result = await database_manage(self.db_pool, "VerifyLog", "insert", log_data=log_data)
+        if not insert_result["success"]:
+            logger.error(f"[LinkAmongUs] 写入验证日志时发生错误: {insert_result['message']}")
             yield event.plain_result("创建验证请求失败，数据库写入异常，请联系管理员。")
             return
+        
+        logger.info(f"[LinkAmongUs] 成功写入用户 {user_qq_id} 的验证日志。")
 
         # 发送成功消息
         process_duration = self.CreateVerifyConfig_ProcessDuration
@@ -299,7 +311,8 @@ class LinkAmongUs(Star):
               reminder_time = timeout - self.CreateVerifyConfig_TimeoutReminder
               await asyncio.sleep(reminder_time)
 
-              verify_log = await database_manage(self.db_pool, "get_active_verify_request", user_qq_id=user_qq_id)
+              verify_log_result = await database_manage(self.db_pool, "VerifyLog", "get", latest=True, user_qq_id=user_qq_id)
+              verify_log = verify_log_result["data"] if verify_log_result["success"] and verify_log_result["data"] else None
               # 发送超时提醒
               if verify_log and verify_log["Status"] in ["Created", "Retrying"]:
                 messageChain_Group = [
@@ -329,10 +342,11 @@ class LinkAmongUs(Star):
             await asyncio.sleep(timeout)
         
           # 最终的超时检查
-          verify_log = await database_manage(self.db_pool, "get_active_verify_request", user_qq_id=user_qq_id)
+          verify_log_result = await database_manage(self.db_pool, "VerifyLog", "get", latest=True, user_qq_id=user_qq_id)
+          verify_log = verify_log_result["data"] if verify_log_result["success"] and verify_log_result["data"] else None
           if verify_log and verify_log["Status"] in ["Created", "Retrying"]:
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求已超时。")
-            await database_manage(self.db_pool, "update_verify_log_status", sql_id=verify_log["SQLID"], status="Expired")
+            await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Expired")
           else:
             logger.debug(f"用户 {user_qq_id} 已完成验证请求，结束超时检查任务。")
         except Exception as e:
@@ -346,8 +360,10 @@ class LinkAmongUs(Star):
             logger.warning(f"[LinkAmongUs] 发送错误消息失败: {e}")
             logger.warning(f"[LinkAmongUs] 将忽略错误，将继续取消用户 {user_qq_id} 的验证请求。")
           try:
-            verify_log = await database_manage(self.db_pool, "get_active_verify_request", user_qq_id=user_qq_id)
-            await database_manage(self.db_pool, "update_verify_log_status", sql_id=verify_log["SQLID"], status="Cancelled")
+            verify_log_result = await database_manage(self.db_pool, "VerifyLog", "get", latest=True, user_qq_id=user_qq_id)
+            if verify_log_result["success"] and verify_log_result["data"]:
+                verify_log = verify_log_result["data"]
+                await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Cancelled")
             logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求因内部错误被取消。")
           except Exception as e:
             logger.error(f"[LinkAmongUs] 取消用户 {user_qq_id} 的验证请求时发生意外错误：{e}")
@@ -361,7 +377,8 @@ class LinkAmongUs(Star):
             
         user_qq_id = event.get_sender_id()
         # 检查用户是否有活跃的验证请求
-        verify_log = await database_manage(self.db_pool, "get_active_verify_request", user_qq_id=user_qq_id)
+        verify_log_result = await database_manage(self.db_pool, "VerifyLog", "get", latest=True, user_qq_id=user_qq_id)
+        verify_log = verify_log_result["data"] if verify_log_result["success"] and verify_log_result["data"] else None
         if not verify_log:
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝完成验证请求。")
             yield event.plain_result("你还没有创建验证请求，或是该验证请求已过期。")
@@ -387,20 +404,33 @@ class LinkAmongUs(Star):
         
         # 根据API返回的状态处理
         if verify_status == "NotVerified":
-            await database_manage(self.db_pool, "update_verify_log_status", sql_id=verify_log["SQLID"], status="Retrying")
+            await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Retrying")
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求为未完成，拒绝完成验证请求。")
             yield event.plain_result("验证失败，你还没有进行验证。")
         elif verify_status == "HttpPending":
-            await database_manage(self.db_pool, "update_verify_log_status", sql_id=verify_log["SQLID"], status="Retrying")
+            await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Retrying")
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求为未完成，拒绝完成验证请求。")
             yield event.plain_result("验证失败，请加入房间而不是仅搜索。")
         elif verify_status == "Verified":
             # 额外检查用户是否已关联账号
-            existing_user = await database_manage(self.db_pool, "check_user_exists", user_qq_id=user_qq_id)
-            existing_friend_code = await database_manage(self.db_pool, "check_friend_code_exists", friend_code=api_response.get("FriendCode"))
+            user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
+            existing_user = user_check["data"] if user_check["success"] and user_check["data"] else None
+            
+            friend_code_check = await database_manage(self.db_pool, "VerifyUserData", "get")
+            existing_friend_code = None
+            if friend_code_check["success"] and friend_code_check["data"]:
+                target_friend_code = api_response.get("FriendCode")
+                if isinstance(friend_code_check["data"], list):
+                    for item in friend_code_check["data"]:
+                        if item.get('UserFriendCode') == target_friend_code:
+                            existing_friend_code = item
+                            break
+                else:
+                    if friend_code_check["data"].get('UserFriendCode') == target_friend_code:
+                        existing_friend_code = friend_code_check["data"]
             if existing_user or existing_friend_code:
                 await self.api_verify_request("DELETE", api_key, verify_code=verify_log["VerifyCode"])
-                await database_manage(self.db_pool, "update_verify_log_status", sql_id=verify_log["SQLID"], status="Cancelled")
+                await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Cancelled")
                 error_message = "验证失败，"
                 if existing_user:
                     error_message += f"你的QQ号已绑定 {existing_user['UserFriendCode']}。"
@@ -444,9 +474,10 @@ class LinkAmongUs(Star):
                 "UserHttpIP": api_response.get("HttpIp")
             }
             
-            if await database_manage(self.db_pool, "insert_verify_user_data", user_data=user_data):
+            insert_result = await database_manage(self.db_pool, "VerifyUserData", "insert", user_data=user_data)
+            if insert_result["success"]:
                 await self.api_verify_request("DELETE", api_key, verify_code=verify_log["VerifyCode"])
-                await database_manage(self.db_pool, "update_verify_log_status", sql_id=verify_log["SQLID"], status="Verified")
+                await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Verified")
                 success_message = (
                     f"验证成功！已将 {user_data['UserAmongUsName']}({user_data['UserFriendCode']}) 关联 QQ {user_data['UserQQID']}。"
                 )
@@ -456,7 +487,7 @@ class LinkAmongUs(Star):
                 logger.error(f"[LinkAmongUs] 用户 {user_qq_id} 验证数据写入失败。")
                 yield event.plain_result("验证失败，数据库写入异常，请联系管理员。")
         elif verify_status == "Expired":
-            await database_manage(self.db_pool, "update_verify_log_status", sql_id=verify_log["SQLID"], status="Expired")
+            await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Expired")
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 验证请求已过期，拒绝完成验证请求。")
             yield event.plain_result("验证失败，请求已过期，请重新创建验证请求。")
         else:
@@ -465,39 +496,47 @@ class LinkAmongUs(Star):
 
         # 自动解除入群验证禁言
         try:
-            async with self.db_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(
-                        "SELECT SQLID, BanGroupID FROM VerifyGroupLog WHERE VerifyUserID = %s AND Status = %s",
-                        (user_qq_id, "Banned")
+            # 查询需要解除禁言的入群验证
+            get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
+                verify_user_id=user_qq_id, status="Banned")
+                
+            if not get_result["success"]:
+                logger.error(f"[LinkAmongUs] 查询入群验证禁言状态时发生错误: {get_result['message']}")
+                return
+                
+            if not get_result["data"]:
+                logger.info(f"[LinkAmongUs] 未找到用户 {user_qq_id} 进行中的入群验证，跳过自动完成。")
+                return
+
+            # 确保banned_logs是列表格式
+            banned_logs = get_result["data"] if isinstance(get_result["data"], list) else [get_result["data"]]
+            unbanned_groups = []
+            
+            for log in banned_logs:
+                log_id = log["SQLID"]
+                group_id = log["BanGroupID"]
+                try:
+                    from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+                    assert isinstance(event, AiocqhttpMessageEvent)
+                    await event.bot.set_group_ban(
+                        group_id=int(group_id),
+                        user_id=int(user_qq_id),
+                        duration=0
                     )
-
-                    banned_logs = await cursor.fetchall()
-                    if not banned_logs:
-                        logger.info(f"[LinkAmongUs] 未找到用户 {user_qq_id} 进行中的入群验证，跳过自动完成。")
-                        return
-
-                    unbanned_groups = []
-                    for log in banned_logs:
-                        log_id = log[0]
-                        group_id = log[1]
-                        try:
-                            from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-                            assert isinstance(event, AiocqhttpMessageEvent)
-                            await event.bot.set_group_ban(
-                                group_id=int(group_id),
-                                user_id=int(user_qq_id),
-                                duration=0
-                            )
-                            logger.debug(f"[LinkAmongUs] 已解除用户 {user_qq_id} 在群 {group_id} 的禁言。")
-                            unbanned_groups.append(group_id)
-                            await cursor.execute(
-                                "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
-                                ("Unbanned", log_id)
-                            )
-                        except Exception as e:
-                            logger.error(f"[LinkAmongUs] 解除用户 {user_qq_id} 在群 {group_id} 的禁言时发生意外错误: {e}")
-                        yield event.plain_result("已尝试自动解除你的入群验证禁言，如不生效请联系群聊管理员手动解除。")
+                    logger.debug(f"[LinkAmongUs] 已解除用户 {user_qq_id} 在群 {group_id} 的禁言。")
+                    unbanned_groups.append(group_id)
+                    
+                    # 更新验证日志状态为已解除禁言
+                    update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
+                        sql_id=log_id, status="Unbanned")
+                    if not update_result["success"]:
+                        logger.error(f"[LinkAmongUs] 更新入群验证状态失败: {update_result['message']}")
+                        
+                except Exception as e:
+                    logger.error(f"[LinkAmongUs] 解除用户 {user_qq_id} 在群 {group_id} 的禁言时发生意外错误: {e}")
+                    
+            yield event.plain_result("已尝试自动解除你的入群验证禁言，如不生效请联系群聊管理员手动解除。")
+            
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 入群验证禁言时发生意外错误: {e}")
             yield event.plain_result("尝试自动处理入群验证禁言时发生意外错误，请联系管理员。")          
@@ -518,29 +557,36 @@ class LinkAmongUs(Star):
             current_time = datetime.now()
             
             # 查询所有状态为Created或Retrying的记录
-            async with self.db_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(
-                        "SELECT SQLID, CreateTime, Status, UserQQID, UserFriendCode FROM VerifyLog WHERE Status IN ('Created', 'Retrying')"
-                    )
-                    results = await cursor.fetchall()
-                    if not results:
-                        logger.info("[LinkAmongUs] 未找到非法验证状态请求。")
-                        yield event.plain_result("没有找到需要清理的验证请求。")
-                        return
-                    expired_count = 0
-                    columns = [desc[0] for desc in cursor.description]
-                    logger.debug(f"[LinkAmongUs] 已找到 {len(results)} 条待检查的验证请求。")
+            get_result = await database_manage(self.db_pool, "VerifyLog", "get", 
+                status=["Created", "Retrying"],  # 使用列表表示IN条件
+                sql_id=None, verify_code=None, user_qq_id=None, user_friend_code=None, create_time=None, status_not=None  # 添加必需的字段
+            )
+            if not get_result["success"]:
+                logger.error(f"[LinkAmongUs] 查询验证记录失败: {get_result['message']}")
+                yield event.plain_result("查询失败，发生意外错误，请查看日志。")
+                return
+            
+            if not get_result["data"]:
+                logger.info("[LinkAmongUs] 未找到非法验证状态请求。")
+                yield event.plain_result("没有找到需要清理的验证请求。")
+                return
+                
+            # 确保results是列表格式
+            results = get_result["data"] if isinstance(get_result["data"], list) else [get_result["data"]]
+            expired_count = 0
+            logger.debug(f"[LinkAmongUs] 已找到 {len(results)} 条待检查的验证请求。")
 
-                    # 检查每条记录是否超时
-                    for row in results:
-                        record = dict(zip(columns, row))
-                        create_time = record["CreateTime"]
-                        time_diff = (current_time - create_time).total_seconds()
-                        if time_diff > process_duration:
-                            await database_manage(self.db_pool, "update_verify_log_status", sql_id=record["SQLID"], status="Expired")
-                            expired_count += 1
-                            logger.debug(f"[LinkAmongUs] 验证请求 ID {record['SQLID']} 已过期，正在处理。")
+            # 检查每条记录是否超时
+            for record in results:
+                create_time = record["CreateTime"]
+                time_diff = (current_time - create_time).total_seconds()
+                if time_diff > process_duration:
+                    update_result = await database_manage(self.db_pool, "VerifyLog", "update", sql_id=record["SQLID"], status="Expired")
+                    if update_result["success"]:
+                        expired_count += 1
+                        logger.debug(f"[LinkAmongUs] 验证请求 ID {record['SQLID']} 已过期，正在处理。")
+                    else:
+                        logger.error(f"[LinkAmongUs] 更新验证记录失败: {update_result['message']}")
                     
                     logger.info(f"[LinkAmongUs] 清理非法验证请求完成，共处理 {len(results)} 条验证请求，找到并处理了 {expired_count} 条非法验证请求。")
                     yield event.plain_result(f"清理完成，共处理 {len(results)} 条验证请求，找到并处理了 {expired_count} 条非法验证请求。")
@@ -574,35 +620,26 @@ class LinkAmongUs(Star):
             yield event.plain_result("查询失败，数据库连接池未初始化。")
             return
         
-        async with self.db_pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    "SELECT UserQQID, UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserQQID = %s",
-                    (query_value,)
-                )
-                result = await cursor.fetchone()
-                if not result:
-                    await cursor.execute(
-                        "SELECT UserQQID, UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserFriendCode = %s",
-                        (query_value,)
-                    )
-                    result = await cursor.fetchone()
-                
-                if result:
-                    columns = [desc[0] for desc in cursor.description]
-                    user_data = dict(zip(columns, result))
-                    logger.info(f"[LinkAmongUs] 成功查询到用户 {query_value} 的绑定信息。")
-                    message = (
-                        f"用户 {user_data['UserQQID']} 账号关联信息：\n"
-                        f"账号名称：{user_data['UserAmongUsName']}\n"
-                        f"好友代码: {user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
-                        f"账号平台：{user_data['UserTokenPlatform']}\n"
-                        f"关联时间: {user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
-                    )
-                    yield event.plain_result(message)
-                else:
-                    logger.info(f"[LinkAmongUs] 未找到用户 {query_value} 的绑定信息。")
-                    yield event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
+        # 先尝试按QQ号查询
+        get_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=query_value)
+        if not get_result["success"] or not get_result["data"]:
+            # 如果按QQ号没找到，再尝试按好友代码查询
+            get_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_friend_code=query_value)
+        
+        if get_result["success"] and get_result["data"]:
+            user_data = get_result["data"]
+            logger.info(f"[LinkAmongUs] 成功查询到用户 {query_value} 的绑定信息。")
+            message = (
+                f"用户 {user_data['UserQQID']} 账号关联信息：\n"
+                f"账号名称：{user_data['UserAmongUsName']}\n"
+                f"好友代码: {user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
+                f"账号平台：{user_data['UserTokenPlatform']}\n"
+                f"关联时间: {user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            yield event.plain_result(message)
+        else:
+            logger.info(f"[LinkAmongUs] 未找到用户 {query_value} 的绑定信息。")
+            yield event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("cancel")
@@ -613,7 +650,8 @@ class LinkAmongUs(Star):
         
         # 检查是否有活跃的验证请求
         user_qq_id = event.get_sender_id()
-        verify_log = await database_manage(self.db_pool, "get_active_verify_request", user_qq_id=user_qq_id)
+        verify_log_result = await database_manage(self.db_pool, "VerifyLog", "get", latest=True, user_qq_id=user_qq_id)
+        verify_log = verify_log_result["data"] if verify_log_result["success"] and verify_log_result["data"] else None
         if not verify_log:
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝取消验证请求。")
             yield event.plain_result("你没有进行中的验证请求需要取消。")
@@ -630,7 +668,8 @@ class LinkAmongUs(Star):
             api_key=api_key,
             verify_code=verify_code
         )
-        update_success = await database_manage(self.db_pool, "update_verify_log_status", sql_id=verify_log["SQLID"], status="Cancelled")
+        update_result = await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Cancelled")
+        update_success = update_result["success"]
         if delete_success and update_success:
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 成功取消验证请求 {verify_code}。")
             yield event.plain_result(f"已成功取消你于 {verify_log['CreateTime'].strftime('%Y-%m-%d %H:%M:%S')} 使用账号 {verify_log['UserFriendCode']} 创建的验证请求。")
@@ -651,28 +690,22 @@ class LinkAmongUs(Star):
             logger.error("[LinkAmongUs] 未能查询用户绑定信息：数据库连接池未初始化。")
             yield event.plain_result("查询失败，数据库连接池未初始化。")
             return
-        async with self.db_pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    "SELECT UserAmongUsName, UserFriendCode, LastUpdated, UserHashedPuid, UserTokenPlatform FROM VerifyUserData WHERE UserQQID = %s",
-                    (user_qq_id,)
-                )
-                result = await cursor.fetchone()
-                if result:
-                    columns = [desc[0] for desc in cursor.description]
-                    user_data = dict(zip(columns, result))
-                    logger.info(f"[LinkAmongUs] 成功查询到用户 {user_qq_id} 的绑定信息。")
-                    message = (
-                        f"你的账号关联信息：\n"
-                        f"账号名称：{user_data['UserAmongUsName']}\n"
-                        f"好友代码：{user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
-                        f"账号平台：{user_data['UserTokenPlatform']}\n"
-                        f"关联时间：{user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
-                    )
-                    yield event.plain_result(message)
-                else:
-                    logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未绑定 Among Us 账号。")
-                    yield event.plain_result(f"你还未绑定 Among Us 账号。")
+        
+        get_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
+        if get_result["success"] and get_result["data"]:
+            user_data = get_result["data"]
+            logger.info(f"[LinkAmongUs] 成功查询到用户 {user_qq_id} 的绑定信息。")
+            message = (
+                f"你的账号关联信息：\n"
+                f"账号名称：{user_data['UserAmongUsName']}\n"
+                f"好友代码：{user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
+                f"账号平台：{user_data['UserTokenPlatform']}\n"
+                f"关联时间：{user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            yield event.plain_result(message)
+        else:
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未绑定 Among Us 账号。")
+            yield event.plain_result(f"你还未绑定 Among Us 账号。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("help")
@@ -709,7 +742,8 @@ class LinkAmongUs(Star):
         
         logger.debug(f"[LinkAmongUs] 新成员 {user_qq_id} 加入了群 {group_id}。")
 
-        user_data = await database_manage(self.db_pool, "check_user_exists", user_qq_id=user_qq_id)
+        user_check_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
+        user_data = user_check_result["data"] if user_check_result["success"] and user_check_result["data"] else None
         if user_data:
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 已关联 Among Us 账号，跳过入群验证流程。")
             return
@@ -726,37 +760,41 @@ class LinkAmongUs(Star):
             from datetime import timedelta
             kick_time = datetime.now() + timedelta(days=kick_duration)
             
-            async with self.db_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    # 写入验证日志
-                    await cursor.execute(
-                        "INSERT INTO VerifyGroupLog (Status, VerifyUserID, BanGroupID, KickTime) VALUES (%s, %s, %s, %s)",
-                        ("Created", user_qq_id, group_id, kick_time)
-                    )
+            # 写入验证日志
+            log_data = {
+                "Status": "Created",
+                "VerifyUserID": user_qq_id,
+                "BanGroupID": group_id,
+                "KickTime": kick_time
+            }
+            insert_result = await database_manage(self.db_pool, "VerifyGroupLog", "insert", **log_data)
+            if not insert_result["success"]:
+                logger.error(f"[LinkAmongUs] 写入验证日志失败: {insert_result['message']}")
+                return
+            log_id = insert_result["data"]  # 返回的是新插入记录的ID
 
-                    await cursor.execute("SELECT LAST_INSERT_ID()")
-                    result = await cursor.fetchone()
-                    log_id = result[0]
-
-                    # 禁言用户
-                    ban_seconds = self.GroupVerifyConfig_BanNewMemberDuration * 24 * 60 * 60  # 转换为秒
-                    try:
-                        from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-                        assert isinstance(event, AiocqhttpMessageEvent)
-                        await event.bot.set_group_ban(
-                            group_id=int(group_id),
-                            user_id=int(user_qq_id),
-                            duration=ban_seconds
-                        )
-                        logger.debug(f"[LinkAmongUs] 已禁言成员 {user_qq_id}。")
-                    except Exception as e:
-                        logger.error(f"[LinkAmongUs] 禁言用户 {user_qq_id} 时发生错误: {e}")
-                        return
-                    await cursor.execute(
-                        "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
-                        ("Banned", log_id)
-                    )
-                    yield event.chain_result(new_user_join(user_qq_id))
+            # 禁言用户
+            ban_seconds = self.GroupVerifyConfig_BanNewMemberDuration * 24 * 60 * 60  # 转换为秒
+            try:
+                from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+                assert isinstance(event, AiocqhttpMessageEvent)
+                await event.bot.set_group_ban(
+                    group_id=int(group_id),
+                    user_id=int(user_qq_id),
+                    duration=ban_seconds
+                )
+                logger.debug(f"[LinkAmongUs] 已禁言成员 {user_qq_id}。")
+            except Exception as e:
+                logger.error(f"[LinkAmongUs] 禁言用户 {user_qq_id} 时发生错误: {e}")
+                return
+            # 更新验证日志状态
+            update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
+                sql_id=log_id, 
+                Status="Banned"
+            )
+            if not update_result["success"]:
+                logger.error(f"[LinkAmongUs] 更新验证日志状态失败: {update_result['message']}")
+            yield event.chain_result(new_user_join(user_qq_id))
                     
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 入群验证时发生错误: {e}")
@@ -794,27 +832,26 @@ class LinkAmongUs(Star):
             
         try:
             logger.info(f"[LinkAmongUs] 准备取消用户 {user_qq_id} 在群 {group_id} 的入群验证。")
-            async with self.db_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    # 查找验证日志
-                    await cursor.execute(
-                        "SELECT SQLID, Status FROM VerifyGroupLog WHERE VerifyUserID = %s AND BanGroupID = %s",
-                        (user_qq_id, group_id)
-                    )
-                    log = await cursor.fetchone()
-                    if not log:
-                        logger.debug(f"[LinkAmongUs] 未找到用户 {user_qq_id} 在群 {group_id} 的验证日志。")
-                        return
-                        
-                    # 取消入群验证
-                    log_id = log[0]
-                    status = log[1]
-                    if status in ["Created", "Banned"]:
-                        await cursor.execute(
-                            "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
-                            ("Cancelled", log_id)
-                        )
-                        logger.info(f"[LinkAmongUs] 已取消成员 {user_qq_id} 在群 {group_id} 的入群验证。")
+            # 查找验证日志
+            log_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
+                VerifyUserID=user_qq_id, BanGroupID=group_id)
+            if not log_result["success"] or not log_result["data"]:
+                logger.debug(f"[LinkAmongUs] 未找到用户 {user_qq_id} 在群 {group_id} 的验证日志。")
+                return
+                
+            # 取消入群验证
+            log_data = log_result["data"]
+            log_id = log_data["SQLID"]
+            status = log_data["Status"]
+            if status in ["Created", "Banned"]:
+                update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
+                    sql_id=log_id, 
+                    Status="Cancelled"
+                )
+                if update_result["success"]:
+                    logger.info(f"[LinkAmongUs] 已取消成员 {user_qq_id} 在群 {group_id} 的入群验证。")
+                else:
+                    logger.error(f"[LinkAmongUs] 取消验证失败: {update_result['message']}")
                         
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 退群 {group_id} 事件时发生错误: {e}")
@@ -857,45 +894,51 @@ class LinkAmongUs(Star):
 
                 # 查找需要踢出的成员
                 current_time = datetime.now()
-                async with self.db_pool.acquire() as conn:
-                    async with conn.cursor() as cursor:
-                        await cursor.execute(
-                            "SELECT SQLID, VerifyUserID, BanGroupID FROM VerifyGroupLog WHERE Status = %s AND KickTime <= %s",
-                            ("Banned", current_time)
-                        )
-                        users_to_kick = await cursor.fetchall()
-                        
-                        if not users_to_kick:
-                            logger.debug("[LinkAmongUs] 没有需要踢出的未验证成员。")
-                        else:
-                            logger.debug(f"[LinkAmongUs] 已找到 {len(users_to_kick)} 个需要踢出的未验证成员。")
+                get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
+                    Status="Banned", 
+                    KickTime=f"<={current_time}",  # 使用字符串表示条件
+                    sql_id=None, VerifyUserID=None, BanGroupID=None  # 添加必需的字段
+                )
+                
+                # 检查结果并处理
+                if not get_result["success"]:
+                    logger.error(f"[LinkAmongUs] 查询需要踢出的成员失败: {get_result['message']}")
+                elif not get_result["data"]:
+                    logger.debug("[LinkAmongUs] 没有需要踢出的未验证成员。")
+                else:
+                    # 确保 users_to_kick 是列表格式
+                    users_to_kick = get_result["data"] if isinstance(get_result["data"], list) else [get_result["data"]]
+                    logger.debug(f"[LinkAmongUs] 已找到 {len(users_to_kick)} 个需要踢出的未验证成员。")
 
-                            # 踢出用户
-                            for user in users_to_kick:
-                                log_id = user[0]
-                                user_qq_id = user[1]
-                                group_id = user[2]
-                                
-                                try:
-                                    # 尝试踢出用户
-                                    logger.info(f"[LinkAmongUs] 准备踢出用户 {user_qq_id} 从群 {group_id}。")
-                                    from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-                                    assert isinstance(event, AiocqhttpMessageEvent)
-                                    await event.bot.set_group_kick(
-                                        group_id=int(group_id),
-                                        user_id=int(user_qq_id),
-                                        reject_add_request=False
-                                    )
-                                    
-                                    # 更新入群验证日志
-                                    await cursor.execute(
-                                        "UPDATE VerifyGroupLog SET Status = %s WHERE SQLID = %s",
-                                        ("Kicked", log_id)
-                                    )
-                                    logger.info(f"[LinkAmongUs] 已在群 {group_id} 踢出用户 {user_qq_id}。")
-                                    
-                                except Exception as e:
-                                    logger.error(f"[LinkAmongUs] 在群 {group_id} 踢出用户 {user_qq_id} 时发生意外错误: {e}")
+                    # 踢出用户
+                    for user in users_to_kick:
+                        log_id = user["SQLID"]
+                        user_qq_id = user["VerifyUserID"]
+                        group_id = user["BanGroupID"]
+                        
+                        try:
+                            # 尝试踢出用户
+                            logger.info(f"[LinkAmongUs] 准备踢出用户 {user_qq_id} 从群 {group_id}。")
+                            from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+                            assert isinstance(event, AiocqhttpMessageEvent)
+                            await event.bot.set_group_kick(
+                                group_id=int(group_id),
+                                user_id=int(user_qq_id),
+                                reject_add_request=False
+                            )
+                            
+                            # 更新入群验证日志
+                            update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
+                                sql_id=log_id, 
+                                Status="Kicked"
+                            )
+                            if update_result["success"]:
+                                logger.info(f"[LinkAmongUs] 已在群 {group_id} 踢出用户 {user_qq_id}。")
+                            else:
+                                logger.error(f"[LinkAmongUs] 更新验证日志失败: {update_result['message']}")
+                            
+                        except Exception as e:
+                            logger.error(f"[LinkAmongUs] 在群 {group_id} 踢出用户 {user_qq_id} 时发生意外错误: {e}")
                                     
                         logger.debug(f"[LinkAmongUs] 已完成未验证成员超时检查。")
             except Exception as e:
