@@ -8,7 +8,7 @@ async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, lates
     Args:
         db_pool: 数据库连接池。
         table: 要操作的MySQL数据表名，可选值为 `VerifyUserData`、`VerifyLog`、`VerifyGroupLog`。
-        method: 操作数据库的方法，可选值为 `get`、`update`、`insert`。
+        method: 操作数据库的方法，可选值为 `get`、`update`、`insert`、`check`。
         latest: 仅 `method` 为 `get` 时有效，是否只返回最新的一条数据。
         **kwargs: 根据不同操作和表提供相应的参数：
             对于 VerifyUserData 表：
@@ -23,6 +23,8 @@ async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, lates
                 - get: `user_qq_id` (str)
                 - update: `sql_id` (int), `status` (str) 
                 - insert: `user_qq_id` (str), `group_id` (str), `status` (str, 默认 Created)
+            对于任意表：
+                - check: `structure` (str)
     
     Returns:
         Dict[str, Any]: 操作结果字典，包含：
@@ -37,7 +39,29 @@ async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, lates
     try:
         async with db_pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                if table == "VerifyUserData":
+                if method == "check":
+                    structure = kwargs.get('structure')
+                    if not structure:
+                        logger.error("[LinkAmongUs] 插件尝试检查数据表，但未提供 structure 参数。")
+                        return {"success": False, "data": None, "message": "参数 structure 缺失"}
+                    
+                    logger.debug(f"[LinkAmongUs] 正在检查数据表 {table} 是否存在。")
+                    await cursor.execute("SHOW TABLES LIKE %s", (table,))
+                    result = await cursor.fetchone()
+                    
+                    if result:
+                        logger.debug(f"[LinkAmongUs] 数据表 {table} 已存在。")
+                        return {"success": True, "data": {"exists": True}, "message": None}
+                    else:
+                        logger.debug(f"[LinkAmongUs] 数据表 {table} 不存在，将创建该数据表。")
+                        try:
+                            await cursor.execute(structure)
+                            logger.debug(f"[LinkAmongUs] 数据表 {table} 创建成功。")
+                            return {"success": True, "data": {"exists": False, "created": True}, "message": None}
+                        except Exception as e:
+                            logger.error(f"[LinkAmongUs] 创建数据表 {table} 时发生错误: {e}")
+                            return {"success": False, "data": None, "message": "发生意外错误"}
+                elif table == "VerifyUserData":
                     return await _handle_verify_user_data(cursor, method, latest, **kwargs)
                 elif table == "VerifyLog":
                     return await _handle_verify_log(cursor, method, latest, **kwargs)

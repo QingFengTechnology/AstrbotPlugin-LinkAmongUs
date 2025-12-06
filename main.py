@@ -8,6 +8,7 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.api import logger, AstrBotConfig
 from astrbot.core.message.message_event_result import MessageChain
+from pymysql.err import MySQLError
 
 from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
 from .variable.messageTemplate import help_menu, new_user_join
@@ -115,30 +116,21 @@ class LinkAmongUs(Star):
         logger.debug("[LinkAmongUs] 正在进行数据表完整性校验。")
         required_tables = REQUEID_TABLES
         
-        # 检查每个表是否存在，不存在则创建
         for table_name in required_tables:
-            check_result = await database_manage(self.db_pool, None, "check_table_exists", table_name=table_name)
+            if table_name == "VerifyUserData":
+                table_structure = VERIFY_USER_DATA
+            elif table_name == "VerifyLog":
+                table_structure = VERIFY_LOG
+            elif table_name == "VerifyGroupLog":
+                table_structure = VERIFY_GROUP_LOG
+            
+            check_result = await database_manage(self.db_pool, table_name, "check", structure=table_structure)
             if not check_result["success"]:
-                logger.error(f"[LinkAmongUs] 检查数据表 {table_name} 是否存在时发生错误: {check_result['message']}")
-                continue
-                
-            if not check_result["data"]["exists"]:
-                logger.debug(f"[LinkAmongUs] 数据表 {table_name} 不存在，正在创建...")
-                try:
-                    if table_name == "VerifyUserData":
-                        create_result = await database_manage(self.db_pool, None, "create_table", table_definition=VERIFY_USER_DATA)
-                    elif table_name == "VerifyLog":
-                        create_result = await database_manage(self.db_pool, None, "create_table", table_definition=VERIFY_LOG)
-                    elif table_name == "VerifyGroupLog":
-                        create_result = await database_manage(self.db_pool, None, "create_table", table_definition=VERIFY_GROUP_LOG)
-                        
-                    if create_result["success"]:
-                        logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
-                    else:
-                        logger.error(f"[LinkAmongUs] 创建数据表 {table_name} 时发生错误: {create_result['message']}")
-                except Exception as e:
-                    logger.fatal(f"[LinkAmongUs] 创建数据表 {table_name} 时发生意外错误: {e}")
-                    raise Exception("创建数据表时发生意外错误。")
+                logger.fatal(f"[LinkAmongUs] 校验数据表 {table_name} 时发生意外错误。")
+                raise MySQLError("校验数据表时发生意外错误")
+            
+            if check_result["data"].get("created"):
+                logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
             else:
                 logger.debug(f"[LinkAmongUs] 数据表 {table_name} 已存在。")
         
