@@ -247,21 +247,13 @@ class LinkAmongUs(Star):
         # 创建验证请求
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用 Among Us 账号 {friend_code} 创建了一个验证请求。")
         api_key = self.APIConfig_Key
-        api_response = await request_verify_api(
-            session=self.session,
-            api_endpoint=self.APIConfig_EndPoint,
-            api_timeout=self.CreateVerifyConfig_ApiTimeout,
-            method="PUT",
-            api_key=api_key,
-            friend_code=friend_code
-        )
-        if not api_response:
-            logger.warning("[LinkAmongUs] 创建验证请求失败，API 请求失败。")
-            yield event.plain_result("创建验证请求失败，请求API时出现异常，请联系管理员。")
+        api_response = await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, api_key, "PUT", credentials=friend_code)
+        if not api_response["success"]:
+            yield event.plain_result(f"创建验证请求失败，请求API时出现异常：{api_response['message']}。\n如果问题持续存在，请联系管理员。")
             return
 
         # 写入验证日志
-        verify_code = api_response["VerifyCode"]
+        verify_code = api_response["data"]["VerifyCode"]
         logger.info(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的验证日志。")
         
         log_data = {
@@ -379,35 +371,28 @@ class LinkAmongUs(Star):
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求完成验证。")
         # 查询验证状态
         api_key = self.APIConfig_Key
-        api_response = await request_verify_api(
-            session=self.session,
-            api_endpoint=self.APIConfig_EndPoint,
-            api_timeout=self.CreateVerifyConfig_ApiTimeout,
-            method="GET",
-            api_key=api_key,
-            verify_code=verify_log["VerifyCode"]
+        api_response = await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, api_key, "GET", verify_log["VerifyCode"]
         )
-        if not api_response:
-            logger.warning("[LinkAmongUs] 完成验证请求失败，API 请求失败。")
-            yield event.plain_result("检查验证失败，请求API时出现异常，请联系管理员。")
+        if not api_response["success"]:
+            yield event.plain_result(f"检查验证失败，请求API时出现异常：{api_response['message']}。\n请重试验证，如果问题持续存在，请联系管理员。")
             return
-        verify_status = api_response.get("VerifyStatus")
-        logger.debug(f"[LinkAmongUs] 已查询到用户 {user_qq_id} 的验证状态：{verify_status}。")
+        verify_status = api_response["data"].get("VerifyStatus")
         
         # 根据API返回的状态处理
         if verify_status == "NotVerified":
             await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Retrying")
-            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求为未完成，拒绝完成验证请求。")
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求状态为 NotVerified，拒绝完成验证请求。")
             yield event.plain_result("验证失败，你还没有进行验证。")
+            return
         elif verify_status == "HttpPending":
             await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Retrying")
-            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求为未完成，拒绝完成验证请求。")
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求状态为 HttpPending，拒绝完成验证请求。")
             yield event.plain_result("验证失败，请加入房间而不是仅搜索。")
+            return
         elif verify_status == "Verified":
             # 额外检查用户是否已关联账号
             user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
             existing_user = user_check["data"] if user_check["success"] and user_check["data"] else None
-            
             friend_code_check = await database_manage(self.db_pool, "VerifyUserData", "get")
             existing_friend_code = None
             if friend_code_check["success"] and friend_code_check["data"]:
@@ -652,14 +637,8 @@ class LinkAmongUs(Star):
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求取消验证请求。")
         api_key = self.APIConfig_Key
         verify_code = verify_log["VerifyCode"]
-        delete_success = await request_verify_api(
-            session=self.session,
-            api_endpoint=self.APIConfig_EndPoint,
-            api_timeout=self.CreateVerifyConfig_ApiTimeout,
-            method="DELETE",
-            api_key=api_key,
-            verify_code=verify_code
-        )
+        delete_result = await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, "DELETE", api_key, verify_code)
+        delete_success = delete_result["success"]
         update_result = await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Cancelled")
         update_success = update_result["success"]
         if delete_success and update_success:
