@@ -8,7 +8,6 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.api import logger, AstrBotConfig
 from astrbot.core.message.message_event_result import MessageChain
-from pymysql.err import MySQLError
 
 from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
 from .variable.messageTemplate import help_menu, new_user_join
@@ -127,7 +126,7 @@ class LinkAmongUs(Star):
             check_result = await database_manage(self.db_pool, table_name, "check", structure=table_structure)
             if not check_result["success"]:
                 logger.fatal(f"[LinkAmongUs] 校验数据表 {table_name} 时发生意外错误。")
-                raise MySQLError("校验数据表时发生意外错误")
+                raise aiomysql.MySQLError("校验数据表时发生意外错误")
             
             if check_result["data"].get("created"):
                 logger.debug(f"[LinkAmongUs] 数据表 {table_name} 创建成功。")
