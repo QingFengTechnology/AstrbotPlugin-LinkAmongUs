@@ -219,40 +219,26 @@ class LinkAmongUs(Star):
             return event.plain_result("创建验证请求失败，此好友代码非法。")
 
         # 创建验证请求
-        logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用 Among Us 账号 {friend_code} 创建了一个验证请求。")
         api_key = self.APIConfig_Key
         api_response = await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, api_key, "PUT", credentials=friend_code)
         if not api_response["success"]:
-            yield event.plain_result(f"创建验证请求失败，请求API时出现异常：{api_response['message']}。\n如果问题持续存在，请联系管理员。")
-            return
+            return event.plain_result(f"创建验证请求失败，请求API时出现异常：{api_response['message']}。\n如果问题持续存在，请联系管理员。")
 
         # 写入验证日志
-        verify_code = api_response["data"]["VerifyCode"]
-        logger.info(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的验证日志。")
-        
+        verify_code = api_response["data"]["VerifyCode"]        
         log_data = {
             "Status": "Created",
             "UserQQID": user_qq_id,
             "UserFriendCode": friend_code,
             "VerifyCode": verify_code
         }
-        
         insert_result = await database_manage(self.db_pool, "VerifyLog", "insert", log_data=log_data)
         if not insert_result["success"]:
-            logger.error(f"[LinkAmongUs] 写入验证日志时发生错误: {insert_result['message']}")
-            yield event.plain_result("创建验证请求失败，数据库写入异常，请联系管理员。")
-            return
-        
-        logger.info(f"[LinkAmongUs] 成功写入用户 {user_qq_id} 的验证日志。")
+            return event.plain_result(f"创建验证请求失败，写入数据库时发生意外错误：{insert_result['message']}。\n如果问题持续存在，请联系管理员。")
 
-        # 发送成功消息
         process_duration = self.CreateVerifyConfig_ProcessDuration
-        server_name = self.APIConfig_ServerName
-        success_message = (
-            f"成功创建验证请求，请在 {process_duration} 秒内使用账号 {friend_code} 加入 {server_name} 房间 {verify_code} 以完成验证。"
-        )
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 成功创建验证请求。")
-        yield event.plain_result(success_message)
+        yield event.plain_result(f"成功创建验证请求，请在 {process_duration} 秒内使用账号 {friend_code} 加入 {self.APIConfig_ServerName} 房间 {verify_code} 以完成验证。")
 
         # 启动超时检查任务
         umo = event.unified_msg_origin
