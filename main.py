@@ -168,7 +168,6 @@ class LinkAmongUs(Star):
 
     @filter.command_group("verify")
     def verify(self):
-        """插件命令列表"""
         pass
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
