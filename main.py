@@ -177,39 +177,9 @@ class LinkAmongUs(Star):
         """创建一个验证请求"""
         if not await self.whitelist_check(event):
             return
+
         user_qq_id = event.get_sender_id()
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求创建验证请求。")
-
-        if not friend_code_cheker(friend_code):
-            logger.info("用户使用的好友代码非法，拒绝创建验证请求。")
-            return event.plain_result("创建验证请求失败，此好友代码非法。")
-
-        # 检查用户是否已关联账号
-        user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
-        if user_check["success"] and user_check["data"]:
-            existing_user = user_check["data"]
-            logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 已绑定 Among Us 账号 {existing_user['UserFriendCode']}，拒绝创建验证请求。")
-            yield event.plain_result(
-                f"创建验证请求失败，你的账号已绑定 {existing_user['UserFriendCode']}。\n"
-                f"若要更换，请联系管理员。"
-            )
-            return
-        
-        # 检查好友代码是否已存在
-        friend_code_check = await database_manage(self.db_pool, "VerifyUserData", "get")
-        if friend_code_check["success"] and friend_code_check["data"]:
-            if isinstance(friend_code_check["data"], list):
-                existing_friend_codes = [item['UserFriendCode'] for item in friend_code_check["data"] if item.get('UserFriendCode') == friend_code]
-            else:
-                existing_friend_codes = [friend_code_check["data"].get('UserFriendCode')] if friend_code_check["data"].get('UserFriendCode') == friend_code else []
-            
-            if friend_code in existing_friend_codes:
-                logger.warning(f"[LinkAmongUs] 用户使用的好友代码已绑定，拒绝创建验证请求。")
-                yield event.plain_result(
-                    f"创建验证请求失败，该好友代码已绑定。\n"
-                    f"若要更换，请联系管理员。"
-                )
-                return
 
         # 检查用户是否有进行中的验证请求
         active_verify_request_result = await database_manage(self.db_pool, "VerifyLog", "get", latest=True, user_qq_id=user_qq_id)
@@ -221,12 +191,32 @@ class LinkAmongUs(Star):
             friend_code = active_verify_request["UserFriendCode"]
             if status in ["Created", "Retrying"]:
                 server_name = self.APIConfig_ServerName
-                logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 已有进行中的验证请求，拒绝重复创建验证请求。")
-                yield event.plain_result(
-                    f"创建验证请求失败，你已于 {create_time} 使用 {friend_code} 创建了一个验证请求，需要加入服务器 {server_name} 房间 {verify_code} 以完成验证。\n"
-                    f"请先完成或取消现有的验证请求。"
-                )
-                return
+                logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 已有进行中的验证请求，拒绝重复创建验证请求。")
+                return event.plain_result(f"你已于 {create_time} 使用 {friend_code} 创建了一个验证请求，需要加入服务器 {server_name} 房间 {verify_code} 以完成验证。\n请先完成该请求，若需要取消该请求，请发送 /verify cancel 命令。")
+
+        # 检查用户是否已关联账号
+        user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
+        if user_check["success"] and user_check["data"]:
+            existing_user = user_check["data"]
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 已绑定 Among Us 账号，拒绝创建验证请求。")
+            return event.plain_result(f"创建验证请求失败，你的账号已绑定 {existing_user['UserFriendCode']}。\n若要解绑当前账号，请联系管理员。")
+
+        # 检查好友代码是否已存在
+        friend_code_check = await database_manage(self.db_pool, "VerifyUserData", "get")
+        if friend_code_check["success"] and friend_code_check["data"]:
+            if isinstance(friend_code_check["data"], list):
+                existing_friend_codes = [item['UserFriendCode'] for item in friend_code_check["data"] if item.get('UserFriendCode') == friend_code]
+            else:
+                existing_friend_codes = [friend_code_check["data"].get('UserFriendCode')] if friend_code_check["data"].get('UserFriendCode') == friend_code else []
+            
+            if friend_code in existing_friend_codes:
+                logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用的好友代码已绑定他人账号，拒绝创建验证请求。")
+                return event.plain_result("创建验证请求失败，该好友代码已绑定他人账号。\n若你的 Among Us 账号被他人冒用，请联系管理员。")
+
+        # 校验好友代码格式
+        if not friend_code_cheker(friend_code):
+            logger.info("用户使用的好友代码非法，拒绝创建验证请求。")
+            return event.plain_result("创建验证请求失败，此好友代码非法。")
 
         # 创建验证请求
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用 Among Us 账号 {friend_code} 创建了一个验证请求。")
