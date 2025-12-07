@@ -13,6 +13,7 @@ from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, R
 from .variable.messageTemplate import help_menu, new_user_join
 from .function.api.databaseManage import database_manage
 from .function.api.verifyRequest import request_verify_api
+from .function.func import friend_code_cheker
 
 class LinkAmongUs(Star):
     def __init__(self, context: Context, config: AstrBotConfig): # AstrBotConfig 继承自 Dict，拥有字典的所有方法。
@@ -176,27 +177,12 @@ class LinkAmongUs(Star):
         """创建一个验证请求"""
         if not await self.whitelist_check(event):
             return
-
         user_qq_id = event.get_sender_id()
+        logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求创建验证请求。")
 
-        # 校验好友代码格式
-        if len(friend_code) < 9 and len(friend_code) > 25:
-            logger.debug(f"[LinkAmongUs] 用户使用的好友代码长度超过限制，拒绝使用此好友代码创建验证请求。")
-            yield event.plain_result("创建验证请求失败，此好友代码非法。")
-            return
-        import re
-        pattern = r'^[A-Za-z]+#\d{4}$'
-        if not re.match(pattern, friend_code):
-            logger.debug(f"[LinkAmongUs] 用户使用的好友代码格式错误，拒绝使用此好友代码创建验证请求。")
-            yield event.plain_result("创建验证请求失败，此好友代码非法。")
-            return
-
-        # 检查好友代码是否在黑名单中
-        black_list = self.VerifyConfig_BlackFriendCode
-        if friend_code in black_list:
-            logger.debug(f"[LinkAmongUs] 用户使用的好友代码命中黑名单，拒绝使用此好友代码创建验证请求。")
-            yield event.plain_result("创建验证请求失败，此好友代码非法。")
-            return
+        if not friend_code_cheker(friend_code):
+            logger.info("用户使用的好友代码非法，拒绝创建验证请求。")
+            return event.plain_result("创建验证请求失败，此好友代码非法。")
 
         # 检查用户是否已关联账号
         user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
