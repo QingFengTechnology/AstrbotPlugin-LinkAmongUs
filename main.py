@@ -109,7 +109,7 @@ class LinkAmongUs(Star):
             )
         except Exception as e:
             logger.fatal(f"[LinkAmongUs] 连接至 MySQL 服务器时发生意外错误: {e}")
-            raise ConnectionError("连接至 MySQL 服务器时发生意外错误。")
+            raise ConnectionError("连接至 MySQL 服务器时发生意外错误")
         
         # 数据表完整性校验
         logger.debug("[LinkAmongUs] 正在进行数据表完整性校验。")
