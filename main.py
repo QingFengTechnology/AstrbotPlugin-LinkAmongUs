@@ -12,7 +12,7 @@ from astrbot.core.message.message_event_result import MessageChain
 from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
 from .variable.messageTemplate import help_menu, new_user_join
 from .function.api.databaseManage import database_manage
-from function.api.verifyRequest import request_verify_api
+from .function.api.verifyRequest import request_verify_api
 
 class LinkAmongUs(Star):
     def __init__(self, context: Context, config: AstrBotConfig): # AstrBotConfig 继承自 Dict，拥有字典的所有方法。
