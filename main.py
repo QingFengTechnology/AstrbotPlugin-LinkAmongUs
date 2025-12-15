@@ -649,7 +649,25 @@ class LinkAmongUs(Star):
         if not await self.whitelist_check(event):
             return
 
-        pass
+        banned_user_id = event.get_sender_id()
+        group_id = event.get_group_id()
+        
+        logger.debug(f"[LinkAmongUs] 正在验证成员 {banned_user_id} 在群 {group_id} 的入群验证状态。")
+        get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
+            VerifyUserID=banned_user_id, 
+            BanGroupID=group_id, 
+            Status="Banned"
+        )
+        if not get_result["success"]:
+            return
+        if not get_result["data"]:
+            logger.debug(f"[LinkAmongUs] 用户 {banned_user_id} 在群 {group_id} 没有进行中的入群验证，无需重新禁言。")
+            return
+        
+        if await set_group_ban(event, group_id, banned_user_id, self.GroupVerifyConfig_BanNewMemberDuration) != None:
+            return
+        logger.info(f"[LinkAmongUs] 已重新禁言成员 {banned_user_id}。")
+            
 
     async def scheduled_kick_unverified_users(self, event: AstrMessageEvent):
         """定时任务：检查并踢出未验证的用户"""
