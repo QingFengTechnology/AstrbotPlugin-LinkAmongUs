@@ -260,8 +260,7 @@ class LinkAmongUs(Star):
         verify_log = verify_log_result["data"] if verify_log_result["success"] and verify_log_result["data"] else None
         if not verify_log:
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝完成验证请求。")
-            yield event.plain_result("你没有正在进行中的验证请求需要完成。")
-            return
+            return event.plain_result("你没有正在进行中的验证请求需要完成。")
 
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求完成验证。")
         # 查询验证状态
@@ -269,21 +268,18 @@ class LinkAmongUs(Star):
         api_response = await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, api_key, "GET", verify_log["VerifyCode"]
         )
         if not api_response["success"]:
-            yield event.plain_result(f"检查验证状态失败，请求API时出现异常：{api_response['message']}。\n请重试完成验证，如果问题持续存在，请联系管理员。")
-            return
+            return event.plain_result(f"检查验证状态失败，请求API时出现异常：{api_response['message']}。\n请重试完成验证，如果问题持续存在，请联系管理员。")
         verify_status = api_response["data"].get("VerifyStatus")
         
         # 根据API返回的状态处理
         if verify_status == "NotVerified":
             await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Retrying")
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未进行验证，拒绝完成验证请求。")
-            yield event.plain_result("验证失败，你还没有进行验证。")
-            return
+            return event.plain_result("验证失败，你还没有进行验证。")
         elif verify_status == "HttpPending":
             await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Retrying")
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未完成验证，拒绝完成验证请求。")
-            yield event.plain_result("验证失败，请加入房间而不是仅搜索。")
-            return
+            return event.plain_result("验证失败，请加入房间而不是仅搜索。")
         elif verify_status == "Verified":
             # 额外检查用户是否已关联账号
             user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
@@ -313,8 +309,7 @@ class LinkAmongUs(Star):
                 error_message += "\n若要更换，请联系管理员。"
                 
                 logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 发生数据冲突，拒绝完成验证请求。")
-                yield event.plain_result(error_message)
-                return
+                return event.plain_result(error_message)
             
             # 获取用户名称
             # event.get_sender_name() 方法不可靠，其无法正常获取临时会话的用户名称。
@@ -348,18 +343,18 @@ class LinkAmongUs(Star):
                     f"验证成功！已将 {user_data['UserAmongUsName']}({user_data['UserFriendCode']}) 关联 QQ {user_data['UserQQID']}。"
                 )
                 logger.info(f"[LinkAmongUs] 成功将用户 {user_qq_id} 关联好友代码 {user_data['UserFriendCode']}。")
-                yield event.send_message(success_message)
+                yield event.plain_result(success_message)
             else:
                 logger.error(f"[LinkAmongUs] 用户 {user_qq_id} 验证数据写入失败。")
-                yield event.plain_result(f"验证失败，数据库写入异常：{insert_result['message']}。\n请重试完成验证，如果问题持续存在，请联系管理员。")
+                return event.plain_result(f"验证失败，数据库写入异常：{insert_result['message']}。\n请重试完成验证，如果问题持续存在，请联系管理员。")
         elif verify_status == "Expired":
             await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Expired")
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 验证请求已过期，拒绝完成验证请求。")
-            yield event.plain_result("验证失败，你的验证请求已过期，请重新创建验证请求。")
+            return event.plain_result("验证失败，你的验证请求已过期，请重新创建验证请求。")
         else:
             logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 验证请求状态 ({verify_status}) 非法，拒绝完成验证请求。")
             logger.warning("[LinkAmongUs] 这可能是插件未适配造成的，请考虑更新插件版本或联系清风适配。")
-            yield event.plain_result(f"验证失败，你的验证请求状态非法。\n请重试完成验证，如问题持续存在，请联系管理员。")
+            return event.plain_result(f"验证失败，你的验证请求状态非法。\n请重试完成验证，如问题持续存在，请联系管理员。")
 
         # 自动解除入群验证禁言
         logger.info(f"[LinkAmongUs] 正在尝试自动解除用户 {user_qq_id} 的入群验证禁言。")
@@ -398,11 +393,11 @@ class LinkAmongUs(Star):
                 except Exception as e:
                     logger.error(f"[LinkAmongUs] 解除用户 {user_qq_id} 在群 {group_id} 的禁言时发生意外错误: {e}")
                     
-            yield event.plain_result("已尝试自动解除你的入群验证禁言，如不生效请联系群聊管理员手动解除。")
+            return event.plain_result("已尝试自动解除你的入群验证禁言，如不生效请联系群聊管理员手动解除。")
             
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 入群验证禁言时发生意外错误: {e}")
-            yield event.plain_result("尝试自动处理入群验证禁言时发生意外错误，请联系管理员。")
+            return event.plain_result("尝试自动处理入群验证禁言时发生意外错误，请联系管理员。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.permission_type(filter.PermissionType.ADMIN)
@@ -414,8 +409,7 @@ class LinkAmongUs(Star):
 
         if not friend_code_cheker(query_value):
             logger.debug(f"[LinkAmongUs] 管理员查询的用户非法，拒绝使用此参数查询用户信息。")
-            yield event.plain_result("查询参数非法。")
-            return
+            return event.plain_result("查询参数非法。")
             
         # 查询用户绑定信息
         logger.info(f"[LinkAmongUs] 正在查询用户 {query_value} 的绑定信息。")
@@ -435,10 +429,10 @@ class LinkAmongUs(Star):
                 f"账号平台：{user_data['UserTokenPlatform']}\n"
                 f"关联时间: {user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
             )
-            yield event.plain_result(message)
+            return event.plain_result(message)
         else:
             logger.info(f"[LinkAmongUs] 未找到用户 {query_value} 的绑定信息。")
-            yield event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
+            return event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("cancel")
@@ -453,8 +447,7 @@ class LinkAmongUs(Star):
         verify_log = verify_log_result["data"] if verify_log_result["success"] and verify_log_result["data"] else None
         if not verify_log:
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝取消验证请求。")
-            yield event.plain_result("你没有进行中的验证请求需要取消。")
-            return
+            return event.plain_result("你没有进行中的验证请求需要取消。")
 
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求取消验证请求。")
         api_key = self.APIConfig_Key
@@ -465,10 +458,10 @@ class LinkAmongUs(Star):
         update_success = update_result["success"]
         if delete_success and update_success:
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 成功取消验证请求 {verify_code}。")
-            yield event.plain_result(f"已成功取消你于 {verify_log['CreateTime'].strftime('%Y-%m-%d %H:%M:%S')} 使用账号 {verify_log['UserFriendCode']} 创建的验证请求。")
+            return event.plain_result(f"已成功取消你于 {verify_log['CreateTime'].strftime('%Y-%m-%d %H:%M:%S')} 使用账号 {verify_log['UserFriendCode']} 创建的验证请求。")
         else:
             logger.warning(f"[LinkAmongUs] 未能取消用户 {user_qq_id} 的验证请求。")
-            yield event.plain_result("取消请求时发生意外错误，请联系管理员。")
+            return event.plain_result("取消请求时发生意外错误，请联系管理员。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("info")
@@ -490,10 +483,10 @@ class LinkAmongUs(Star):
                 f"账号平台：{user_data['UserTokenPlatform']}\n"
                 f"关联时间：{user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
             )
-            yield event.plain_result(message)
+            return event.plain_result(message)
         else:
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未绑定 Among Us 账号。")
-            yield event.plain_result(f"你还未绑定 Among Us 账号。")
+            return event.plain_result(f"你还未绑定 Among Us 账号。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("help")
@@ -501,7 +494,7 @@ class LinkAmongUs(Star):
         """发送帮助菜单"""
         if not await self.whitelist_check(event):
             return
-        yield event.plain_result(self.help_menu)
+        return event.plain_result(self.help_menu)
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.event_message_type(filter.EventMessageType.ALL)
@@ -578,8 +571,8 @@ class LinkAmongUs(Star):
             )
             if not update_result["success"]:
                 logger.error(f"[LinkAmongUs] 更新验证日志状态失败: {update_result['message']}")
-            yield event.chain_result(new_user_join(user_qq_id))
-                    
+            return event.chain_result(new_user_join(user_qq_id))
+
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 入群验证时发生错误: {e}")
 
@@ -615,7 +608,7 @@ class LinkAmongUs(Star):
             log_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
                 VerifyUserID=user_qq_id, BanGroupID=group_id)
             if not log_result["success"] or not log_result["data"]:
-                logger.debug(f"[LinkAmongUs] 未找到用户 {user_qq_id} 在群 {group_id} 的验证日志。")
+                logger.debug(f"[LinkAmongUs] 未找到用户 {user_qq_id} 在群 {group_id} 的验证日志，跳过取消入群验证。")
                 return
                 
             # 取消入群验证
