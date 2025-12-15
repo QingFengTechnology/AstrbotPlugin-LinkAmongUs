@@ -367,17 +367,17 @@ class LinkAmongUs(Star):
             yield event.plain_result(f"验证失败，你的验证请求状态非法。\n请重试完成验证，如问题持续存在，请联系管理员。")
 
         # 自动解除入群验证禁言
+        logger.info(f"[LinkAmongUs] 正在尝试自动解除用户 {user_qq_id} 的入群验证禁言。")
         try:
             # 查询需要解除禁言的入群验证
-            get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
-                verify_user_id=user_qq_id, status="Banned")
+            get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", user_qq_id=user_qq_id, status="Banned")
                 
             if not get_result["success"]:
                 logger.error(f"[LinkAmongUs] 查询入群验证禁言状态时发生错误: {get_result['message']}")
                 return
                 
             if not get_result["data"]:
-                logger.info(f"[LinkAmongUs] 未找到用户 {user_qq_id} 进行中的入群验证，跳过自动完成。")
+                logger.info(f"[LinkAmongUs] 未找到用户 {user_qq_id} 进行中的入群验证，跳过自动完成入群验证。")
                 return
 
             # 确保banned_logs是列表格式
@@ -402,7 +402,7 @@ class LinkAmongUs(Star):
                     update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
                         sql_id=log_id, status="Unbanned")
                     if not update_result["success"]:
-                        logger.error(f"[LinkAmongUs] 更新入群验证状态失败: {update_result['message']}")
+                        logger.error(f"[LinkAmongUs] 更新入群验证状态时发生意外错误: {update_result['message']}。")
                         
                 except Exception as e:
                     logger.error(f"[LinkAmongUs] 解除用户 {user_qq_id} 在群 {group_id} 的禁言时发生意外错误: {e}")
