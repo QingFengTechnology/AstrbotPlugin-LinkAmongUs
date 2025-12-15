@@ -13,6 +13,7 @@ from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, R
 from .variable.messageTemplate import help_menu, new_user_join
 from .function.api.databaseManage import database_manage
 from .function.api.verifyRequest import request_verify_api
+from .function.api.callQApi import set_group_ban
 from .function.func import friend_code_cheker, verification_timeout_checker
 
 class LinkAmongUs(Star):
@@ -388,14 +389,7 @@ class LinkAmongUs(Star):
                 log_id = log["SQLID"]
                 group_id = log["BanGroupID"]
                 try:
-                    from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-                    assert isinstance(event, AiocqhttpMessageEvent)
-                    await event.bot.set_group_ban(
-                        group_id=int(group_id),
-                        user_id=int(user_qq_id),
-                        duration=0
-                    )
-                    logger.debug(f"[LinkAmongUs] 已解除用户 {user_qq_id} 在群 {group_id} 的禁言。")
+                    await set_group_ban(event, group_id, user_qq_id, 0)
                     unbanned_groups.append(group_id)
                     
                     # 更新验证日志状态为已解除禁言
