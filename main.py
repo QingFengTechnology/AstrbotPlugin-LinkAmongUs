@@ -389,14 +389,17 @@ class LinkAmongUs(Star):
                 log_id = log["SQLID"]
                 group_id = log["BanGroupID"]
                 try:
-                    await set_group_ban(event, group_id, user_qq_id, 0)
+                    error_message = await set_group_ban(event, group_id, user_qq_id, 0)
+                    if error_message:
+                        continue
+                        
                     unbanned_groups.append(group_id)
                     
                     # 更新验证日志状态为已解除禁言
                     update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
                         sql_id=log_id, status="Unbanned")
                     if not update_result["success"]:
-                        logger.error(f"[LinkAmongUs] 更新入群验证状态时发生意外错误: {update_result['message']}。")
+                        continue
                         
                 except Exception as e:
                     logger.error(f"[LinkAmongUs] 解除用户 {user_qq_id} 在群 {group_id} 的禁言时发生意外错误: {e}")
