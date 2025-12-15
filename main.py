@@ -419,11 +419,6 @@ class LinkAmongUs(Star):
             
         # 查询用户绑定信息
         logger.info(f"[LinkAmongUs] 正在查询用户 {query_value} 的绑定信息。")
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 未能查询用户绑定信息：数据库连接池未初始化。")
-            yield event.plain_result("查询失败，数据库连接池未初始化。")
-            return
-        
         # 先尝试按QQ号查询
         get_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=query_value)
         if not get_result["success"] or not get_result["data"]:
@@ -484,11 +479,6 @@ class LinkAmongUs(Star):
             
         user_qq_id = event.get_sender_id()
         logger.info(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的绑定信息。")
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 未能查询用户绑定信息：数据库连接池未初始化。")
-            yield event.plain_result("查询失败，数据库连接池未初始化。")
-            return
-        
         get_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
         if get_result["success"] and get_result["data"]:
             user_data = get_result["data"]
@@ -548,10 +538,6 @@ class LinkAmongUs(Star):
             
         # 入群验证
         logger.info(f"[LinkAmongUs] 准备为成员 {user_qq_id} 创建入群验证。")
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 未能写入验证日志：数据库连接池未初始化。")
-            return
-            
         try:
             # 计算踢出时间
             kick_duration = self.KickNewMemberConfig_KickNewMemberIfNotVerify
@@ -623,11 +609,6 @@ class LinkAmongUs(Star):
         user_qq_id = str(raw_message.get("user_id"))
 
         logger.debug(f"[LinkAmongUs] 成员 {user_qq_id} 退出了群 {group_id}。")
-        
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 未能更新验证日志：数据库连接池未初始化。")
-            return
-            
         try:
             logger.info(f"[LinkAmongUs] 准备取消用户 {user_qq_id} 在群 {group_id} 的入群验证。")
             # 查找验证日志
@@ -684,12 +665,6 @@ class LinkAmongUs(Star):
         while self.running:  # 使用self.running标志位控制循环
             try:
                 logger.debug("[LinkAmongUs] 正在准备未验证成员超时检查。")
-                if not self.db_pool:
-                    logger.error("[LinkAmongUs] 未能进行未验证成员超时检查，数据库连接池未初始化。")
-                    polling_interval = self.KickNewMemberConfig_PollingInterval
-                    await asyncio.sleep(polling_interval * 3600)
-                    continue
-
                 # 查找需要踢出的成员
                 current_time = datetime.now()
                 get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
