@@ -20,7 +20,7 @@ async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, lates
                 - update: `sql_id` (int), `status` (str)
                 - insert: `user_qq_id` (str), `friend_code` (str), `verify_code` (str), `status` (str, 默认 Created)
             对于 VerifyGroupLog 表：
-                - get: `user_qq_id` (str)
+                - get: `user_qq_id` (str), `status` (str, 可选)
                 - update: `sql_id` (int), `status` (str) 
                 - insert: `user_qq_id` (str), `group_id` (str), `status` (str, 默认 Created)
             对于任意表：
@@ -214,17 +214,29 @@ async def _handle_verify_group_log(cursor, method: str, latest: bool, **kwargs) 
     try:
         if method == "get":
             user_qq_id = kwargs.get('user_qq_id')
+            status = kwargs.get('status')
             if user_qq_id:
                 logger.debug(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的入群验证日志。")
+                
+                # 构建查询条件
+                where_conditions = ["VerifyUserID = %s"]
+                params = [user_qq_id]
+                
+                if status:
+                    where_conditions.append("Status = %s")
+                    params.append(status)
+                
+                where_clause = " AND ".join(where_conditions)
+                
                 if latest:
                     await cursor.execute(
-                        "SELECT * FROM VerifyGroupLog WHERE VerifyUserID = %s ORDER BY CreateTime DESC LIMIT 1",
-                        (user_qq_id,)
+                        f"SELECT * FROM VerifyGroupLog WHERE {where_clause} ORDER BY CreateTime DESC LIMIT 1",
+                        params
                     )
                 else:
                     await cursor.execute(
-                        "SELECT * FROM VerifyGroupLog WHERE VerifyUserID = %s",
-                        (user_qq_id,)
+                        f"SELECT * FROM VerifyGroupLog WHERE {where_clause}",
+                        params
                     )
                 result = await cursor.fetchone()
                 if result:
