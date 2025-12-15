@@ -1,13 +1,11 @@
 import asyncio
 import aiohttp
 import aiomysql
-import astrbot.api.message_components as Comp
 
 from datetime import datetime
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.api import logger, AstrBotConfig
-from astrbot.core.message.message_event_result import MessageChain
 
 from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
 from .variable.messageTemplate import help_menu, new_user_join
