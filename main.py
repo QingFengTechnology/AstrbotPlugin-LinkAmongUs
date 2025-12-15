@@ -402,61 +402,7 @@ class LinkAmongUs(Star):
             
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 入群验证禁言时发生意外错误: {e}")
-            yield event.plain_result("尝试自动处理入群验证禁言时发生意外错误，请联系管理员。")          
-
-    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @verify.command("clean")
-    async def verify_clean(self, event: AstrMessageEvent):
-        """清理数据库中的非法验证请求"""
-        process_duration = self.CreateVerifyConfig_ProcessDuration
-        logger.info(f"[LinkAmongUs] 管理员请求了清理数据库中的非法验证请求。")
-        if not self.db_pool:
-            logger.error("[LinkAmongUs] 清理数据库非法验证请求失败：数据库连接池未初始化。")
-            yield event.plain_result("清理失败，数据库连接池未初始化。")
-            return
-
-        try:
-            current_time = datetime.now()
-            
-            # 查询所有状态为Created或Retrying的记录
-            get_result = await database_manage(self.db_pool, "VerifyLog", "get", 
-                status=["Created", "Retrying"],  # 使用列表表示IN条件
-                sql_id=None, verify_code=None, user_qq_id=None, user_friend_code=None, create_time=None, status_not=None  # 添加必需的字段
-            )
-            if not get_result["success"]:
-                logger.error(f"[LinkAmongUs] 查询验证记录失败: {get_result['message']}")
-                yield event.plain_result("查询失败，发生意外错误，请查看日志。")
-                return
-            
-            if not get_result["data"]:
-                logger.info("[LinkAmongUs] 未找到非法验证状态请求。")
-                yield event.plain_result("没有找到需要清理的验证请求。")
-                return
-                
-            # 确保results是列表格式
-            results = get_result["data"] if isinstance(get_result["data"], list) else [get_result["data"]]
-            expired_count = 0
-            logger.debug(f"[LinkAmongUs] 已找到 {len(results)} 条待检查的验证请求。")
-
-            # 检查每条记录是否超时
-            for record in results:
-                create_time = record["CreateTime"]
-                time_diff = (current_time - create_time).total_seconds()
-                if time_diff > process_duration:
-                    update_result = await database_manage(self.db_pool, "VerifyLog", "update", sql_id=record["SQLID"], status="Expired")
-                    if update_result["success"]:
-                        expired_count += 1
-                        logger.debug(f"[LinkAmongUs] 验证请求 ID {record['SQLID']} 已过期，正在处理。")
-                    else:
-                        logger.error(f"[LinkAmongUs] 更新验证记录失败: {update_result['message']}")
-                    
-                    logger.info(f"[LinkAmongUs] 清理非法验证请求完成，共处理 {len(results)} 条验证请求，找到并处理了 {expired_count} 条非法验证请求。")
-                    yield event.plain_result(f"清理完成，共处理 {len(results)} 条验证请求，找到并处理了 {expired_count} 条非法验证请求。")
-                    
-        except Exception as e:
-            logger.error(f"[LinkAmongUs] 清理非法验证请求时发生错误: {e}")
-            yield event.plain_result("清理失败，发生意外错误，请查看日志。")
+            yield event.plain_result("尝试自动处理入群验证禁言时发生意外错误，请联系管理员。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.permission_type(filter.PermissionType.ADMIN)
