@@ -192,7 +192,7 @@ class LinkAmongUs(Star):
             if status in ["Created", "Retrying"]:
                 server_name = self.APIConfig_ServerName
                 logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 已有进行中的验证请求，拒绝重复创建验证请求。")
-                return event.plain_result(f"你已于 {create_time} 使用 {friend_code} 创建了一个验证请求，需要加入服务器 {server_name} 房间 {verify_code} 以完成验证。\n请先完成该请求，若需要取消该请求，请发送 /verify cancel 命令。")
+                return event.plain_result(f"你已于 {create_time} 使用 {friend_code} 创建了一个验证请求，需要加入服务器 {server_name} 房间 {verify_code} 以完成验证。\n请先完成或取消该请求。")
 
         # 检查用户是否已关联账号
         user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
@@ -259,7 +259,7 @@ class LinkAmongUs(Star):
         verify_log = verify_log_result["data"] if verify_log_result["success"] and verify_log_result["data"] else None
         if not verify_log:
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝完成验证请求。")
-            yield event.plain_result("你还没有创建验证请求，或是该验证请求已过期。")
+            yield event.plain_result("你没有正在进行中的验证请求需要完成。")
             return
 
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求完成验证。")
@@ -268,19 +268,19 @@ class LinkAmongUs(Star):
         api_response = await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, api_key, "GET", verify_log["VerifyCode"]
         )
         if not api_response["success"]:
-            yield event.plain_result(f"检查验证失败，请求API时出现异常：{api_response['message']}。\n请重试验证，如果问题持续存在，请联系管理员。")
+            yield event.plain_result(f"检查验证状态失败，请求API时出现异常：{api_response['message']}。\n请重试完成验证，如果问题持续存在，请联系管理员。")
             return
         verify_status = api_response["data"].get("VerifyStatus")
         
         # 根据API返回的状态处理
         if verify_status == "NotVerified":
             await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Retrying")
-            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求状态为 NotVerified，拒绝完成验证请求。")
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未进行验证，拒绝完成验证请求。")
             yield event.plain_result("验证失败，你还没有进行验证。")
             return
         elif verify_status == "HttpPending":
             await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Retrying")
-            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求状态为 HttpPending，拒绝完成验证请求。")
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未完成验证，拒绝完成验证请求。")
             yield event.plain_result("验证失败，请加入房间而不是仅搜索。")
             return
         elif verify_status == "Verified":
@@ -356,14 +356,15 @@ class LinkAmongUs(Star):
                 yield event.send_message(success_message)
             else:
                 logger.error(f"[LinkAmongUs] 用户 {user_qq_id} 验证数据写入失败。")
-                yield event.plain_result("验证失败，数据库写入异常，请联系管理员。")
+                yield event.plain_result(f"验证失败，数据库写入异常：{insert_result['message']}。\n请重试完成验证，如果问题持续存在，请联系管理员。")
         elif verify_status == "Expired":
             await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Expired")
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 验证请求已过期，拒绝完成验证请求。")
-            yield event.plain_result("验证失败，请求已过期，请重新创建验证请求。")
+            yield event.plain_result("验证失败，你的验证请求已过期，请重新创建验证请求。")
         else:
-            logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 验证请求状态 {verify_status} 非法，拒绝完成验证请求。")
-            yield event.plain_result(f"验证失败，你的验证请求状态非法，请联系管理员。")
+            logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 验证请求状态 ({verify_status}) 非法，拒绝完成验证请求。")
+            logger.warning("[LinkAmongUs] 这可能是插件未适配造成的，请考虑更新插件版本或联系清风适配。")
+            yield event.plain_result(f"验证失败，你的验证请求状态非法。\n请重试完成验证，如问题持续存在，请联系管理员。")
 
         # 自动解除入群验证禁言
         try:
