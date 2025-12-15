@@ -13,7 +13,7 @@ from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, R
 from .variable.messageTemplate import help_menu, new_user_join
 from .function.api.databaseManage import database_manage
 from .function.api.verifyRequest import request_verify_api
-from .function.api.callQApi import set_group_ban
+from .function.api.callQApi import set_group_ban, get_stranger_info
 from .function.func import friend_code_cheker, verification_timeout_checker
 
 class LinkAmongUs(Star):
@@ -319,17 +319,11 @@ class LinkAmongUs(Star):
             # 获取用户名称
             # event.get_sender_name() 方法不可靠，其无法正常获取临时会话的用户名称。
             logger.debug(f"[LinkAmongUs] 正在获取用户 {user_qq_id} 的名称。")
-            try: 
-                from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-                assert isinstance(event, AiocqhttpMessageEvent)
-                client = event.bot
-                stranger_info = await client.get_stranger_info(
-                    user_id=int(user_qq_id), no_cache=True
-                )
+            stranger_info = await get_stranger_info(event, user_qq_id)
+            if isinstance(stranger_info, dict):
                 user_qq_name = stranger_info.get("nickname")
-                logger.debug("[LinkAmongUs] 成功获取用户名称。")
-            except Exception as e:
-                logger.warning(f"[LinkAmongUs] 获取用户 {user_qq_id} 的名称时发生意外错误，将使用备用方法获取名称：{e}")
+            else:
+                logger.warning(f"[LinkAmongUs] 获取用户 {user_qq_id} 的名称时发生意外错误，将使用备用方法获取名称。")
                 user_qq_name = event.get_sender_name()
             
             # 写入用户数据
