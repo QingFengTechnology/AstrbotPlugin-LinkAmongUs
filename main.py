@@ -411,13 +411,8 @@ class LinkAmongUs(Star):
         """查询指定用户的账号关联信息"""
         if not await self.whitelist_check(event):
             return
-            
-        # 参数格式校验
-        import re
-        friend_code_pattern = r'^[A-Za-z]+#\d{4}$'
-        is_friend_code = len(query_value) <= 25 and re.match(friend_code_pattern, query_value)
-        is_qq_number = query_value.isdigit() and 5 <= len(query_value) <= 13
-        if not is_friend_code and not is_qq_number:
+
+        if not friend_code_cheker(query_value):
             logger.debug(f"[LinkAmongUs] 管理员查询的用户非法，拒绝使用此参数查询用户信息。")
             yield event.plain_result("查询参数非法。")
             return
