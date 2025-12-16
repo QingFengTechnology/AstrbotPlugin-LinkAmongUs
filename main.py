@@ -208,17 +208,11 @@ class LinkAmongUs(Star):
             return
 
         # 检查好友代码是否已存在
-        friend_code_check = await database_manage(self.db_pool, "VerifyUserData", "get")
+        friend_code_check = await database_manage(self.db_pool, "VerifyUserData", "get", friend_code=friend_code)
         if friend_code_check["success"] and friend_code_check["data"]:
-            if isinstance(friend_code_check["data"], list):
-                existing_friend_codes = [item['UserFriendCode'] for item in friend_code_check["data"] if item.get('UserFriendCode') == friend_code]
-            else:
-                existing_friend_codes = [friend_code_check["data"].get('UserFriendCode')] if friend_code_check["data"].get('UserFriendCode') == friend_code else []
-            
-            if friend_code in existing_friend_codes:
-                logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用的好友代码已绑定他人账号，拒绝创建验证请求。")
-                yield event.plain_result("创建验证请求失败，该好友代码已绑定他人账号。\n若你的 Among Us 账号被他人冒用，请联系管理员。")
-                return
+            logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用的好友代码已绑定他人账号，拒绝创建验证请求。")
+            yield event.plain_result("创建验证请求失败，该好友代码已绑定他人账号。\n若你的 Among Us 账号被他人冒用，请联系管理员。")
+            return
 
         # 校验好友代码格式
         if not friend_code_cheker(friend_code, self.VerifyConfig_BlackFriendCode):
