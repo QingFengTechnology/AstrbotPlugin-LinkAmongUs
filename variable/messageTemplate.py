@@ -24,10 +24,6 @@ Args:
 /verify query <QQID|FriendCode> - 查询指定用户的账号关联信息。
 Args:
   - QQID|FriendCode: 必填。要查询的用户QQ号或好友代码（二选一）。
-
-@PermissionType.ADMIN
-/verify clean - 清理数据库中的非法验证请求。
-- 此操作将检查数据库中的验证日志表，将所有创建超过 10 分钟的但仍未结束的验证日志标记为过期。
 """
 
 def new_user_join(user_qq_id: int | str):
