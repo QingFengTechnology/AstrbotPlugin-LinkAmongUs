@@ -533,11 +533,12 @@ class LinkAmongUs(Star):
             return
         if raw_message.get("notice_type") != "group_increase":
             return
-        group_id = str(raw_message.get("group_id"))
+
+        group_id = event.get_group_id()
+        user_qq_id = event.get_sender_id()
+
         if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             return
-            
-        user_qq_id = str(raw_message.get("user_id"))
         
         logger.debug(f"[LinkAmongUs] 新成员 {user_qq_id} 加入了群 {group_id}。")
         # 检查是否已关联
@@ -605,11 +606,12 @@ class LinkAmongUs(Star):
             return
         if raw_message.get("notice_type") != "group_decrease":
             return
-        group_id = str(raw_message.get("group_id"))
+
+        group_id = event.get_group_id()
+        user_qq_id = event.get_sender_id()
+
         if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             return
-
-        user_qq_id = str(raw_message.get("user_id"))
 
         # 处理退群
         logger.debug(f"[LinkAmongUs] 成员 {user_qq_id} 退出了群 {group_id}。")
