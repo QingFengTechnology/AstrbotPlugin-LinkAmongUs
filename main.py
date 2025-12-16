@@ -261,7 +261,7 @@ class LinkAmongUs(Star):
         # 检查用户是否有活跃的验证请求
         verify_log_result = await database_manage(self.db_pool, "VerifyLog", "get", latest=True, user_qq_id=user_qq_id)
         verify_log = verify_log_result["data"] if verify_log_result["success"] and verify_log_result["data"] else None
-        if not verify_log:
+        if not verify_log or verify_log["Status"] not in ["Created", "Retrying"]:
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝完成验证请求。")
             yield event.plain_result("你没有正在进行中的验证请求需要完成。")
             return
