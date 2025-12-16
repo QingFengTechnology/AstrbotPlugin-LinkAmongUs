@@ -201,7 +201,10 @@ class LinkAmongUs(Star):
 
         # 检查用户是否已关联账号
         user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
-        if user_check["success"] and user_check["data"]:
+        if not user_check["success"]:
+            yield event.plain_result(f"创建验证请求失败，查询你的账号是否绑定时发生意外错误：{user_check['message']}。\n如果问题持续存在，请联系管理员。")
+            return
+        elif user_check["success"] and user_check["data"]:
             existing_user = user_check["data"]
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 已绑定 Among Us 账号，拒绝创建验证请求。")
             yield event.plain_result(f"创建验证请求失败，你的账号已绑定 {existing_user['UserFriendCode']}。\n若要解绑当前账号，请联系管理员。")
@@ -209,7 +212,10 @@ class LinkAmongUs(Star):
 
         # 检查好友代码是否已存在
         friend_code_check = await database_manage(self.db_pool, "VerifyUserData", "get", friend_code=friend_code)
-        if friend_code_check["success"] and friend_code_check["data"]:
+        if not friend_code_check["success"]:
+            yield event.plain_result(f"创建验证请求失败，查询好友代码是否绑定时发生意外错误：{friend_code_check['message']}。\n如果问题持续存在，请联系管理员。")
+            return
+        elif friend_code_check["success"] and friend_code_check["data"]:
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 使用的好友代码已绑定他人账号，拒绝创建验证请求。")
             yield event.plain_result("创建验证请求失败，该好友代码已绑定他人账号。\n若你的 Among Us 账号被他人冒用，请联系管理员。")
             return
