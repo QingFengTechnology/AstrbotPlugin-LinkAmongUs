@@ -448,12 +448,12 @@ class LinkAmongUs(Star):
         """取消用户当前的验证请求"""
         if not await self.whitelist_check(event):
             return
-        
-        # 检查是否有活跃的验证请求
+
         user_qq_id = event.get_sender_id()
+        # 检查是否有活跃的验证请求
         verify_log_result = await database_manage(self.db_pool, "VerifyLog", "get", latest=True, user_qq_id=user_qq_id)
         verify_log = verify_log_result["data"] if verify_log_result["success"] and verify_log_result["data"] else None
-        if not verify_log:
+        if not verify_log or verify_log["Status"] not in ["Created", "Retrying"]:
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝取消验证请求。")
             yield event.plain_result("你没有进行中的验证请求需要取消。")
             return
