@@ -235,13 +235,7 @@ class LinkAmongUs(Star):
 
         # 写入验证日志
         verify_code = api_response["data"]["VerifyCode"]        
-        log_data = {
-            "Status": "Created",
-            "UserQQID": user_qq_id,
-            "UserFriendCode": friend_code,
-            "VerifyCode": verify_code
-        }
-        insert_result = await database_manage(self.db_pool, "VerifyLog", "insert", log_data=log_data)
+        insert_result = await database_manage(self.db_pool, "VerifyLog", "insert", user_qq_id=user_qq_id, friend_code=friend_code, verify_code=verify_code, status="Created")
         if not insert_result["success"]:
             yield event.plain_result(f"创建验证请求失败，写入数据库时发生意外错误：{insert_result['message']}。\n如果问题持续存在，请联系管理员。")
             return
@@ -557,13 +551,7 @@ class LinkAmongUs(Star):
             kick_time = datetime.now() + timedelta(days=kick_duration)
             
             # 写入验证日志
-            log_data = {
-                "Status": "Created",
-                "VerifyUserID": user_qq_id,
-                "BanGroupID": group_id,
-                "KickTime": kick_time
-            }
-            insert_result = await database_manage(self.db_pool, "VerifyGroupLog", "insert", **log_data)
+            insert_result = await database_manage(self.db_pool, "VerifyGroupLog", "insert", user_qq_id=user_qq_id, group_id=group_id, status="Created")
             if not insert_result["success"]:
                 logger.error(f"[LinkAmongUs] 写入验证日志失败: {insert_result['message']}")
                 return
