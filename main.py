@@ -423,11 +423,23 @@ class LinkAmongUs(Star):
             
         # 查询用户绑定信息
         logger.info(f"[LinkAmongUs] 正在查询用户 {query_value} 的绑定信息。")
-        get_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=query_value)
-        if not get_result["success"] or not get_result["data"]:
-            get_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_friend_code=query_value)
-        if get_result["success"] and get_result["data"]:
-            user_data = get_result["data"]
+        result_data = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=query_value)
+        if not result_data["success"]:
+            yield event.plain_result(f"查询用户绑定信息时发生意外错误：{result_data['message']}。")
+            return
+        elif not result_data["data"]:
+            success = False
+            result_data = await database_manage(self.db_pool, "VerifyUserData", "get", friend_code=query_value)
+            if not result_data["success"]:
+                yield event.plain_result(f"查询用户绑定信息时发生意外错误：{result_data['message']}。")
+                return
+            elif not result_data["data"]:
+                success = False
+        else:
+            success = True
+
+        if success:
+            user_data = result_data["data"]
             logger.info(f"[LinkAmongUs] 成功查询到用户 {query_value} 的绑定信息。")
             message = (
                 f"用户 {user_data['UserQQID']} 账号关联信息：\n"
