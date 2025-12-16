@@ -54,3 +54,23 @@ def qq_id_checker(qq_id: int) -> bool:
         return False
 
     return True
+
+async def whitelist_checker(event, private_message: bool, whitelist_groups: list) -> bool:
+    """白名单检查
+    
+    Args:
+      event: 消息事件对象
+      private_message: 是否允许在私聊中使用
+      whitelist_groups: 允许的白名单群组列表
+
+    Returns:
+      如果通过白名单检查，返回 True；否则返回 False。
+    """
+    group_id = event.get_group_id()
+    if group_id == "" and not private_message:
+        logger.debug("[LinkAmongUs] 不允许在私聊中使用该命令，取消该任务。")
+        return False
+    if group_id != "" and whitelist_groups and group_id not in whitelist_groups:
+        logger.debug(f"[LinkAmongUs] 群 {group_id} 不在白名单内，取消该任务。")
+        return False
+    return True
