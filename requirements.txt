@@ -1,3 +1,3 @@
-astrbot>=4.5.0
+astrbot>=4.9.1
 aiohttp>=3.8.0
 aiomysql>=0.1.1
