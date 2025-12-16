@@ -462,17 +462,16 @@ class LinkAmongUs(Star):
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求取消验证请求。")
         api_key = self.APIConfig_Key
         verify_code = verify_log["VerifyCode"]
-        delete_result = await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, api_key, "DELETE", verify_code)
-        delete_success = delete_result["success"]
+        await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, api_key, "DELETE", verify_code)
         update_result = await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Cancelled")
-        update_success = update_result["success"]
-        if delete_success and update_success:
+        # 不检查 API 是否请求失败
+        if update_result["success"]:
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 成功取消验证请求 {verify_code}。")
             yield event.plain_result(f"已成功取消你于 {verify_log['CreateTime'].strftime('%Y-%m-%d %H:%M:%S')} 使用账号 {verify_log['UserFriendCode']} 创建的验证请求。")
             return
         else:
             logger.warning(f"[LinkAmongUs] 未能取消用户 {user_qq_id} 的验证请求。")
-            yield event.plain_result("取消请求时发生意外错误，请联系管理员。")
+            yield event.plain_result(f"取消请求失败，写入数据库时发生意外错误：{update_result['message']}。\n请重试取消验证，如果问题持续存在，请联系管理员。")
             return
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
