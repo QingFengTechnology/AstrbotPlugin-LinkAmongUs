@@ -171,7 +171,7 @@ class LinkAmongUs(Star):
     async def verify_help(self, event: AstrMessageEvent):
         """发送帮助菜单"""
         group_id = event.get_group_id()
-        if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
+        if whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             yield event.plain_result(self.help_menu)
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
