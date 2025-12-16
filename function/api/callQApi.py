@@ -16,16 +16,23 @@ async def set_group_ban(event: AstrMessageEvent, group_id: int | str, user_id: i
         操作失败返回的错误信息。操作成功返回`None`。
     """
     try:
+        if duration == 0:
+            logger.debug(f"[LinkAmongUs] 正在解除成员 {user_id} 在群 {group_id} 的禁言。")
+        else:
+            logger.debug(f"[LinkAmongUs] 准备在群 {group_id} 禁言成员 {user_id}，时长 {duration} 秒。")
         assert isinstance(event, AiocqhttpMessageEvent)
         await event.bot.set_group_ban(
             group_id=int(group_id),
             user_id=int(user_id),
             duration=duration
         )
-        logger.debug(f"[LinkAmongUs] 已解除用户 {user_id} 在群 {group_id} 的禁言。")
+        if duration == 0:
+            logger.debug(f"[LinkAmongUs] 已解除成员 {user_id} 在群 {group_id} 的禁言。")
+        else:
+            logger.debug(f"[LinkAmongUs] 已在群 {group_id} 禁言成员 {user_id}。")
         return None
     except Exception as e:
-        logger.error(f"[LinkAmongUs] 解除用户 {user_id} 在群 {group_id} 的禁言时发生意外错误: {e}")
+        logger.error(f"[LinkAmongUs] 在群 {group_id} 处理对成员 {user_id} 的禁言操作时发生意外错误: {e}")
         return str(e)
 
 async def get_stranger_info(event: AstrMessageEvent, user_qq_id: int | str, no_cache: bool = True) -> dict | str:
@@ -41,6 +48,7 @@ async def get_stranger_info(event: AstrMessageEvent, user_qq_id: int | str, no_c
         包含用户信息的字典，或操作失败返回的错误信息。
     """
     try:
+        logger.debug(f"[LinkAmongUs] 正在获取 {user_qq_id} 的账号信息。")
         assert isinstance(event, AiocqhttpMessageEvent)
         stranger_info = await event.bot.get_stranger_info(
             user_id=int(user_qq_id), no_cache=no_cache
@@ -65,14 +73,15 @@ async def set_group_kick(event: AstrMessageEvent, group_id: int | str, user_id: 
         操作失败返回的错误信息。操作成功返回`None`。
     """
     try:
+        logger.debug(f"[LinkAmongUs] 正在从群 {group_id} 踢出成员 {user_id}。")
         assert isinstance(event, AiocqhttpMessageEvent)
         await event.bot.set_group_kick(
             group_id=int(group_id),
             user_id=int(user_id),
             reject_add_request=reject_add_request
         )
-        logger.debug(f"[LinkAmongUs] 已从群 {group_id} 踢出用户 {user_id}。")
+        logger.debug(f"[LinkAmongUs] 已从群 {group_id} 踢出成员 {user_id}。")
         return None
     except Exception as e:
-        logger.error(f"[LinkAmongUs] 踢出用户 {user_id} 在群 {group_id} 时发生意外错误: {e}")
+        logger.error(f"[LinkAmongUs] 在群 {group_id} 踢出成员 {user_id} 时发生意外错误: {e}")
         return str(e)
