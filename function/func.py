@@ -25,7 +25,7 @@ def friend_code_cheker(friend_code: str, black_list: list) -> bool:
         return False
 
     # 长度校验
-    if len(friend_code) < 9 and len(friend_code) > 25:
+    if len(friend_code) < 9 or len(friend_code) > 25:
         logger.debug(f"[LinkAmongUs] 好友代码超出长度限制，判断为非法。")
         return False
 
