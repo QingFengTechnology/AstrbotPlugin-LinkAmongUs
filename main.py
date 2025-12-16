@@ -12,7 +12,7 @@ from .variable.messageTemplate import help_menu, new_user_join
 from .function.api.databaseManage import database_manage
 from .function.api.verifyRequest import request_verify_api
 from .function.api.callQApi import set_group_ban, get_stranger_info, set_group_kick
-from .function.func import friend_code_cheker, verification_timeout_checker
+from .function.func import friend_code_cheker, verification_timeout_checker, qq_id_checker
 
 class LinkAmongUs(Star):
     def __init__(self, context: Context, config: AstrBotConfig): # AstrBotConfig 继承自 Dict，拥有字典的所有方法。
