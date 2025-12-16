@@ -189,9 +189,8 @@ class LinkAmongUs(Star):
             verify_code = active_verify_request["VerifyCode"]
             friend_code = active_verify_request["UserFriendCode"]
             if status in ["Created", "Retrying"]:
-                server_name = self.APIConfig_ServerName
                 logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 已有进行中的验证请求，拒绝重复创建验证请求。")
-                return event.plain_result(f"你已于 {create_time} 使用 {friend_code} 创建了一个验证请求，需要加入服务器 {server_name} 房间 {verify_code} 以完成验证。\n请先完成或取消该请求。")
+                return event.plain_result(f"你已于 {create_time} 使用 {friend_code} 创建了一个验证请求，需要加入服务器 {self.APIConfig_ServerName} 房间 {verify_code} 以完成验证。\n请先完成或取消该请求。")
 
         # 检查用户是否已关联账号
         user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
