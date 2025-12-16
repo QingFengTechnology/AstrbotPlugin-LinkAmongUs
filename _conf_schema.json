@@ -90,7 +90,8 @@
         "type": "int",
         "description": "禁言新成员时长",
         "default": 14,
-        "hint": "新成员入群时禁言成员多长时间，单位为天。该值需要介于1-30之间，非法值将导致插件崩溃。"
+        "hint": "新成员入群时禁言成员多长时间，单位为天。该值需要介于1-30之间，非法值将导致插件崩溃。",
+        "slider": { "min": 0, "max": 30, "step": 1}
       },
       "GroupVerifyConfig_KickNewMemberConfig": {
         "type": "object",
@@ -100,13 +101,15 @@
             "type": "int",
             "description": "当新成员多久未验证时踢出成员",
             "default": 7,
-            "hint": "当新成员加群多久时间仍未验证则踢出该成员。该值需要介于1-30之间，非法值将导致插件崩溃。不建议设置值大于等于禁言新成员时长。"
+            "hint": "当新成员加群多久时间仍未验证则踢出该成员。该值需要介于1-30之间，非法值将导致插件崩溃。不建议设置值大于等于禁言新成员时长。",
+            "slider": { "min": 1, "max": 30, "step": 1}
           },
           "KickNewMemberConfig_PollingInterval": {
             "type": "int",
             "description": "踢出检查间隔",
             "default": 12,
-            "hint": "每多长时间检查一次新成员是否应当踢出，单位为小时。插件启动时将始终进行一次踢出检查。由于Astrbot不会强制终止循环，因此该值设置过大可能会出现终止插件所需时间过长的问题。"
+            "hint": "每多长时间检查一次新成员是否应当踢出，单位为小时。插件启动时将始终进行一次踢出检查。由于Astrbot不会强制终止循环，因此该值设置过大可能会出现终止插件所需时间过长的问题。",
+            "slider": { "min": 1, "max": 72, "step": 1}
           }
         }
       }
@@ -133,20 +136,23 @@
           "CreateVerifyConfig_ApiTimeout": {
             "type": "int",
             "description": "请求超时时间",
-            "hint": "向API发送请求后多少秒未得到响应就直接认定超时，设定过长可能会影响用户体验。",
-            "default": 6
+            "hint": "向API发送请求后多少秒未得到响应就直接认定超时，设定过短或过长可能会影响用户体验。",
+            "default": 6,
+            "slider": { "min": 1, "max": 120, "step": 1}
           },
           "CreateVerifyConfig_TimeoutReminder": {
             "type": "int",
             "description": "超时提醒时间",
             "hint": "在超时前的多少秒发送提醒用户完成验证，设为0以禁用该功能。该值不能大于验证超时时间，否则将导致插件崩溃。",
-            "default": 180
+            "default": 180,
+            "slider": { "min": 0, "max": 600, "step": 1}
           },
           "CreateVerifyConfig_ProcessDuration": {
             "type": "int",
             "description": "验证超时时间",
             "hint": "向API发送请求多少秒后主动标记为验证超时并发送销毁验证请求。由于Nmpostor限制，该选项仅可填写1-600秒，否则将导致插件崩溃。",
-            "default": 540
+            "default": 540,
+            "slider": { "min": 0, "max": 600, "step": 1}
           }
         }
       },
