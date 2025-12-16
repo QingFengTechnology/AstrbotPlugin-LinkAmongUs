@@ -20,7 +20,7 @@ async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, lates
                 - update: `sql_id` (int), `status` (str)
                 - insert: `user_qq_id` (str), `friend_code` (str), `verify_code` (str), `status` (str, 默认 Created)
             对于 VerifyGroupLog 表：
-                - get: `user_qq_id` (str), `status` (str, 可选)
+                - get: `user_qq_id` | `status` (str), `status` (str, 可选)
                 - update: `sql_id` (int), `status` (str) 
                 - insert: `user_qq_id` (str), `group_id` (str), `status` (str, 默认 Created)
             对于任意表：
@@ -215,40 +215,54 @@ async def _handle_verify_group_log(cursor, method: str, latest: bool, **kwargs) 
         if method == "get":
             user_qq_id = kwargs.get('user_qq_id')
             status = kwargs.get('status')
+            
+            # 构建查询条件
+            where_conditions = []
+            params = []
+            
             if user_qq_id:
-                logger.debug(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的入群验证日志。")
-                
-                # 构建查询条件
-                where_conditions = ["VerifyUserID = %s"]
-                params = [user_qq_id]
-                
-                if status:
-                    where_conditions.append("Status = %s")
-                    params.append(status)
-                
-                where_clause = " AND ".join(where_conditions)
-                
-                if latest:
-                    await cursor.execute(
-                        f"SELECT * FROM VerifyGroupLog WHERE {where_clause} ORDER BY CreateTime DESC LIMIT 1",
-                        params
-                    )
-                else:
-                    await cursor.execute(
-                        f"SELECT * FROM VerifyGroupLog WHERE {where_clause}",
-                        params
-                    )
+                where_conditions.append("VerifyUserID = %s")
+                params.append(user_qq_id)
+            
+            if status:
+                where_conditions.append("Status = %s")
+                params.append(status)
+            
+            # 如果没有提供任何查询条件，则返回错误
+            if not where_conditions:
+                logger.error("[LinkAmongUs] 插件尝试查询入群验证日志，但未提供 user_qq_id 或 status 参数。")
+                return {"success": False, "data": None, "message": "至少需要提供 user_qq_id 或 status 参数中的一个"}
+            
+            where_clause = " AND ".join(where_conditions)
+            query_desc = f"用户 {user_qq_id}" if user_qq_id else f"状态为 {status}"
+            logger.debug(f"[LinkAmongUs] 正在查询{query_desc} 的入群验证日志。")
+            
+            if latest:
+                await cursor.execute(
+                    f"SELECT * FROM VerifyGroupLog WHERE {where_clause} ORDER BY CreateTime DESC LIMIT 1",
+                    params
+                )
                 result = await cursor.fetchone()
                 if result:
                     columns = [desc[0] for desc in cursor.description]
                     result_dict = dict(zip(columns, result))
-                    logger.debug(f"[LinkAmongUs] 成功查询到用户 {user_qq_id} 的入群验证日志。")
+                    logger.debug(f"[LinkAmongUs] 成功查询到{query_desc} 的入群验证日志。")
                     return {"success": True, "data": result_dict, "message": None}
-                logger.debug(f"[LinkAmongUs] 未查询到用户 {user_qq_id} 的入群验证日志。")
+                logger.debug(f"[LinkAmongUs] 未查询到{query_desc} 的入群验证日志。")
                 return {"success": True, "data": None, "message": None}
             else:
-                logger.error("[LinkAmongUs] 插件尝试查询用户入群验证日志，但未提供 user_qq_id 参数。")
-                return {"success": False, "data": None, "message": "参数 user_qq_id 缺失"}
+                await cursor.execute(
+                    f"SELECT * FROM VerifyGroupLog WHERE {where_clause}",
+                    params
+                )
+                results = await cursor.fetchall()
+                if results:
+                    columns = [desc[0] for desc in cursor.description]
+                    results_list = [dict(zip(columns, row)) for row in results]
+                    logger.debug(f"[LinkAmongUs] 成功查询到{query_desc} 的入群验证日志。")
+                    return {"success": True, "data": results_list, "message": None}
+                logger.debug(f"[LinkAmongUs] 未查询到{query_desc} 的入群验证日志。")
+                return {"success": True, "data": [], "message": None}
 
         elif method == "update":
             sql_id = kwargs.get('sql_id')
