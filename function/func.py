@@ -37,6 +37,31 @@ def friend_code_cheker(friend_code: str, black_list: list) -> bool:
 
     return True
 
+def qq_id_checker(qq_id: int) -> bool:
+    """校验 QQ 号
+    
+    Args:
+      qq_id: 要校验的 QQ 号。
+
+    Returns:
+      如果 QQ 号格式正确，则返回 True；否则返回 False。
+    """
+    logger.debug("[LinkAmongUs] 正在校验 QQ 号合法性。")
+
+    # 基本格式校验
+    try:
+        int(qq_id)
+    except Exception:
+        logger.debug("[LinkAmongUs] QQ 号格式不正确，判断为非法。")
+        return False
+
+    # 长度校验
+    if len(str(qq_id)) < 5 or len(str(qq_id)) > 12:
+        logger.debug(f"[LinkAmongUs] QQ 号长度不正确，判断为非法。")
+        return False
+
+    return True
+
 async def verification_timeout_checker(db_pool: aiomysql.Pool, context: Context, user_qq_id: str, target_is_group: bool, timeout: int, umo: str, reminder_time: int):
     """超时检查任务
     
