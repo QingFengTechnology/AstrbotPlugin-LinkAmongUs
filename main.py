@@ -291,20 +291,14 @@ class LinkAmongUs(Star):
             # 额外检查用户是否已关联账号
             user_check = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
             existing_user = user_check["data"] if user_check["success"] and user_check["data"] else None
-            friend_code_check = await database_manage(self.db_pool, "VerifyUserData", "get")
             existing_friend_code = None
-            if friend_code_check["success"] and friend_code_check["data"]:
-                target_friend_code = api_response.get("FriendCode")
-                if isinstance(friend_code_check["data"], list):
-                    for item in friend_code_check["data"]:
-                        if item.get('UserFriendCode') == target_friend_code:
-                            existing_friend_code = item
-                            break
-                else:
-                    if friend_code_check["data"].get('UserFriendCode') == target_friend_code:
-                        existing_friend_code = friend_code_check["data"]
+            target_friend_code = api_response["data"].get("FriendCode")
+            if target_friend_code:
+                friend_code_check = await database_manage(self.db_pool, "VerifyUserData", "get", friend_code=target_friend_code)
+                if friend_code_check["success"] and friend_code_check["data"]:
+                    existing_friend_code = friend_code_check["data"]
             if existing_user or existing_friend_code:
-                await self.api_verify_request("DELETE", api_key, verify_code=verify_log["VerifyCode"])
+                await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, api_key, "DELETE", verify_log["VerifyCode"])
                 await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Cancelled")
                 error_message = "验证失败，"
                 if existing_user:
@@ -333,19 +327,19 @@ class LinkAmongUs(Star):
             user_data = {
                 "UserQQName": user_qq_name,
                 "UserQQID": user_qq_id,
-                "UserAmongUsName": api_response.get("PlayerName"),
-                "UserFriendCode": api_response.get("FriendCode"),
-                "UserPuid": api_response.get("Puid"),
-                "UserHashedPuid": api_response.get("HashedPuid"),
-                "UserUdpPlatform": api_response.get("UdpPlatform"),
-                "UserTokenPlatform": api_response.get("TokenPlatform"),
-                "UserUdpIP": api_response.get("UdpIp"),
-                "UserHttpIP": api_response.get("HttpIp")
+                "UserAmongUsName": api_response["data"].get("PlayerName"),
+                "UserFriendCode": api_response["data"].get("FriendCode"),
+                "UserPuid": api_response["data"].get("Puid"),
+                "UserHashedPuid": api_response["data"].get("HashedPuid"),
+                "UserUdpPlatform": api_response["data"].get("UdpPlatform"),
+                "UserTokenPlatform": api_response["data"].get("TokenPlatform"),
+                "UserUdpIP": api_response["data"].get("UdpIp"),
+                "UserHttpIP": api_response["data"].get("HttpIp")
             }
             
             insert_result = await database_manage(self.db_pool, "VerifyUserData", "insert", user_data=user_data)
             if insert_result["success"]:
-                await self.api_verify_request("DELETE", api_key, verify_code=verify_log["VerifyCode"])
+                await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, api_key, "DELETE", verify_log["VerifyCode"])
                 await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Verified")
                 success_message = (
                     f"验证成功！已将 {user_data['UserAmongUsName']}({user_data['UserFriendCode']}) 关联 QQ {user_data['UserQQID']}。"
