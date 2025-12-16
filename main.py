@@ -696,9 +696,7 @@ class LinkAmongUs(Star):
                 logger.debug("[LinkAmongUs] 正在准备未验证成员超时检查。")
                 # 查找需要踢出的成员
                 current_time = datetime.now()
-                get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
-                    Status="Banned"
-                )
+                get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", status="Banned")
                 if not get_result["success"]:
                     pass
                 elif not get_result["data"]:
