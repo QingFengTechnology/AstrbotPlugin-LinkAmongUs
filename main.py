@@ -462,7 +462,7 @@ class LinkAmongUs(Star):
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求取消验证请求。")
         api_key = self.APIConfig_Key
         verify_code = verify_log["VerifyCode"]
-        delete_result = await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, "DELETE", api_key, verify_code)
+        delete_result = await request_verify_api(self.session, self.APIConfig_EndPoint, self.CreateVerifyConfig_ApiTimeout, api_key, "DELETE", verify_code)
         delete_success = delete_result["success"]
         update_result = await database_manage(self.db_pool, "VerifyLog", "update", sql_id=verify_log["SQLID"], status="Cancelled")
         update_success = update_result["success"]
