@@ -2,7 +2,7 @@ from typing import Any, Dict
 import aiomysql
 from astrbot.api import logger
 
-async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, latest: bool = False, **kwargs) -> Dict[str, Any]:
+async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, latest: bool = False, **kwargs: str | int | dict) -> Dict[str, Any]:
     """对 MySQL 数据库进行统一操作。
     
     Args:
