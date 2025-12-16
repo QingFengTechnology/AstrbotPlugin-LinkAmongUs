@@ -702,9 +702,9 @@ class LinkAmongUs(Star):
                     sql_id=None, VerifyUserID=None, BanGroupID=None
                 )
                 if not get_result["success"]:
-                    logger.error(f"[LinkAmongUs] 查询需要踢出的成员失败: {get_result['message']}")
+                    pass
                 elif not get_result["data"]:
-                    logger.debug("[LinkAmongUs] 没有需要踢出的未验证成员。")
+                    logger.debug("[LinkAmongUs] 未需要踢出的未验证成员，超时检查结束。")
                 else:
                     users_to_kick = get_result["data"] if isinstance(get_result["data"], list) else [get_result["data"]]
                     logger.debug(f"[LinkAmongUs] 已找到 {len(users_to_kick)} 个需要踢出的未验证成员。")
