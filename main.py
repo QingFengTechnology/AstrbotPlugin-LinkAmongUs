@@ -178,6 +178,14 @@ class LinkAmongUs(Star):
         pass
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
+    @verify.command("help")
+    async def verify_help(self, event: AstrMessageEvent):
+        """发送帮助菜单"""
+        if not await self.whitelist_check(event):
+            return
+        yield event.plain_result(self.help_menu)
+
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("create")
     async def verify_create(self, event: AstrMessageEvent, friend_code: str):
         """创建一个验证请求"""
@@ -410,54 +418,6 @@ class LinkAmongUs(Star):
             yield event.plain_result("尝试自动处理入群验证禁言时发生意外错误，请联系管理员。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @verify.command("query")
-    async def verify_query(self, event: AstrMessageEvent, query_value: str):
-        """查询指定用户的账号关联信息"""
-        if not await self.whitelist_check(event):
-            return
-
-        if not friend_code_cheker(query_value, self.VerifyConfig_BlackFriendCode) and not qq_id_checker(query_value):
-            logger.debug(f"[LinkAmongUs] 管理员查询的用户非法，拒绝使用此参数查询用户信息。")
-            yield event.plain_result("查询参数非法。")
-            return
-            
-        # 查询用户绑定信息
-        logger.info(f"[LinkAmongUs] 正在查询用户 {query_value} 的绑定信息。")
-        result_data = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=query_value)
-        if not result_data["success"]:
-            yield event.plain_result(f"查询用户绑定信息时发生意外错误：{result_data['message']}。")
-            return
-        elif not result_data["data"]:
-            success = False
-            result_data = await database_manage(self.db_pool, "VerifyUserData", "get", friend_code=query_value)
-            if not result_data["success"]:
-                yield event.plain_result(f"查询用户绑定信息时发生意外错误：{result_data['message']}。")
-                return
-            elif not result_data["data"]:
-                success = False
-            else:
-                success = True
-        else:
-            success = True
-
-        if success:
-            user_data = result_data["data"]
-            logger.info(f"[LinkAmongUs] 成功查询到用户 {query_value} 的绑定信息。")
-            message = (
-                f"用户 {user_data['UserQQID']} 账号关联信息：\n"
-                f"账号名称：{user_data['UserAmongUsName']}\n"
-                f"好友代码：{user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
-                f"账号平台：{user_data['UserTokenPlatform']}\n"
-                f"关联时间：{user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-            yield event.plain_result(message)
-        else:
-            logger.info(f"[LinkAmongUs] 未找到用户 {query_value} 的绑定信息。")
-            yield event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
-            return
-
-    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("cancel")
     async def verify_cancel(self, event: AstrMessageEvent):
         """取消用户当前的验证请求"""
@@ -514,15 +474,53 @@ class LinkAmongUs(Star):
             logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 尚未绑定 Among Us 账号。")
             yield event.plain_result(f"你还未绑定 Among Us 账号。")
             return
-
+  
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
-    @verify.command("help")
-    async def verify_help(self, event: AstrMessageEvent):
-        """发送帮助菜单"""
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @verify.command("query")
+    async def verify_query(self, event: AstrMessageEvent, query_value: str):
+        """查询指定用户的账号关联信息"""
         if not await self.whitelist_check(event):
             return
-        yield event.plain_result(self.help_menu)
-        return
+
+        if not friend_code_cheker(query_value, self.VerifyConfig_BlackFriendCode) and not qq_id_checker(query_value):
+            logger.debug(f"[LinkAmongUs] 管理员查询的用户非法，拒绝使用此参数查询用户信息。")
+            yield event.plain_result("查询参数非法。")
+            return
+            
+        # 查询用户绑定信息
+        logger.info(f"[LinkAmongUs] 正在查询用户 {query_value} 的绑定信息。")
+        result_data = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=query_value)
+        if not result_data["success"]:
+            yield event.plain_result(f"查询用户绑定信息时发生意外错误：{result_data['message']}。")
+            return
+        elif not result_data["data"]:
+            success = False
+            result_data = await database_manage(self.db_pool, "VerifyUserData", "get", friend_code=query_value)
+            if not result_data["success"]:
+                yield event.plain_result(f"查询用户绑定信息时发生意外错误：{result_data['message']}。")
+                return
+            elif not result_data["data"]:
+                success = False
+            else:
+                success = True
+        else:
+            success = True
+
+        if success:
+            user_data = result_data["data"]
+            logger.info(f"[LinkAmongUs] 成功查询到用户 {query_value} 的绑定信息。")
+            message = (
+                f"用户 {user_data['UserQQID']} 账号关联信息：\n"
+                f"账号名称：{user_data['UserAmongUsName']}\n"
+                f"好友代码：{user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
+                f"账号平台：{user_data['UserTokenPlatform']}\n"
+                f"关联时间：{user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            yield event.plain_result(message)
+        else:
+            logger.info(f"[LinkAmongUs] 未找到用户 {query_value} 的绑定信息。")
+            yield event.plain_result(f"未找到用户 {query_value} 的绑定信息。")
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.event_message_type(filter.EventMessageType.ALL)
