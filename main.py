@@ -363,6 +363,11 @@ class LinkAmongUs(Star):
             return
 
         # 自动解除入群验证禁言
+        async for result in self.complete_group_verify(event, user_qq_id):
+            yield result
+    
+    async def complete_group_verify(self, event: AstrMessageEvent, user_qq_id: str):
+        """自动解除用户的入群验证禁言"""
         logger.info(f"[LinkAmongUs] 正在尝试自动解除用户 {user_qq_id} 的入群验证禁言。")
         try:
             # 查询需要解除禁言的入群验证
