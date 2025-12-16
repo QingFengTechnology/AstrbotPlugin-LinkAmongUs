@@ -11,7 +11,7 @@ from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, R
 from .variable.messageTemplate import help_menu, new_user_join
 from .function.api.databaseManage import database_manage
 from .function.api.verifyRequest import request_verify_api
-from .function.api.callQApi import set_group_ban, get_stranger_info
+from .function.api.callQApi import set_group_ban, get_stranger_info, set_group_kick
 from .function.func import friend_code_cheker, verification_timeout_checker
 
 class LinkAmongUs(Star):
@@ -690,14 +690,7 @@ class LinkAmongUs(Star):
                         group_id = user["BanGroupID"]
                         
                         try:
-                            logger.info(f"[LinkAmongUs] 准备踢出用户 {user_qq_id} 从群 {group_id}。")
-                            from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-                            assert isinstance(event, AiocqhttpMessageEvent)
-                            await event.bot.set_group_kick(
-                                group_id=int(group_id),
-                                user_id=int(user_qq_id),
-                                reject_add_request=False
-                            )
+                            await set_group_kick(event, group_id, user_qq_id, False)
                             update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
                                 sql_id=log_id, 
                                 Status="Kicked"

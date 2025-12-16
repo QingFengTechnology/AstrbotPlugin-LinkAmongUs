@@ -50,3 +50,29 @@ async def get_stranger_info(event: AstrMessageEvent, user_qq_id: int | str, no_c
     except Exception as e:
         logger.error(f"[LinkAmongUs] 获取用户 {user_qq_id} 的信息时发生意外错误: {e}")
         return str(e)
+
+async def set_group_kick(event: AstrMessageEvent, group_id: int | str, user_id: int | str, reject_add_request: bool = False) -> str | None:
+    """
+    群组踢人。
+    
+    Args:
+        event: 消息事件对象。
+        group_id: 目标群号。
+        user_id: 要踢人目标用户的 QQ 号。
+        reject_add_request: 是否拒绝此人的加群请求，默认 `False`。
+
+    Returns:
+        操作失败返回的错误信息。操作成功返回`None`。
+    """
+    try:
+        assert isinstance(event, AiocqhttpMessageEvent)
+        await event.bot.set_group_kick(
+            group_id=int(group_id),
+            user_id=int(user_id),
+            reject_add_request=reject_add_request
+        )
+        logger.debug(f"[LinkAmongUs] 已从群 {group_id} 踢出用户 {user_id}。")
+        return None
+    except Exception as e:
+        logger.error(f"[LinkAmongUs] 踢出用户 {user_id} 在群 {group_id} 时发生意外错误: {e}")
+        return str(e)
