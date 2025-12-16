@@ -446,9 +446,9 @@ class LinkAmongUs(Star):
             message = (
                 f"用户 {user_data['UserQQID']} 账号关联信息：\n"
                 f"账号名称：{user_data['UserAmongUsName']}\n"
-                f"好友代码: {user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
+                f"好友代码：{user_data['UserFriendCode']} ({user_data['UserHashedPuid']})\n"
                 f"账号平台：{user_data['UserTokenPlatform']}\n"
-                f"关联时间: {user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
+                f"关联时间：{user_data['LastUpdated'].strftime('%Y-%m-%d %H:%M:%S')}"
             )
             yield event.plain_result(message)
         else:
