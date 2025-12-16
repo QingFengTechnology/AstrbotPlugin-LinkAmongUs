@@ -221,7 +221,7 @@ class LinkAmongUs(Star):
                 return
 
         # 校验好友代码格式
-        if not friend_code_cheker(friend_code):
+        if not friend_code_cheker(friend_code, self.VerifyConfig_BlackFriendCode):
             logger.info("用户使用的好友代码非法，拒绝创建验证请求。")
             yield event.plain_result("创建验证请求失败，此好友代码非法。")
             return
@@ -422,7 +422,7 @@ class LinkAmongUs(Star):
         if not await self.whitelist_check(event):
             return
 
-        if not friend_code_cheker(query_value):
+        if not friend_code_cheker(query_value, self.VerifyConfig_BlackFriendCode):
             logger.debug(f"[LinkAmongUs] 管理员查询的用户非法，拒绝使用此参数查询用户信息。")
             yield event.plain_result("查询参数非法。")
             return
