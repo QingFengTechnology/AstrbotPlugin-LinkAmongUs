@@ -12,7 +12,7 @@ async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, lates
         latest: 仅 `method` 为 `get` 时有效，是否只返回最新的一条数据。
         **kwargs: 根据不同操作和表提供相应的参数：
             对于 VerifyUserData 表：
-                - get: `user_qq_id` (str)
+                - get: `user_qq_id` | `friend_code` (str)
                 - update: `user_qq_id` (str), `user_data` (dict)
                 - insert: `user_data` (dict)
             对于 VerifyLog 表：
@@ -80,14 +80,25 @@ async def _handle_verify_user_data(cursor, method: str, latest: bool, **kwargs) 
     try:
         if method == "get":
             user_qq_id = kwargs.get('user_qq_id')
-            if not user_qq_id:
-                logger.error("[LinkAmongUs] 插件尝试查询用户身份数据，但未提供 user_qq_id 参数。")
-                return {"success": False, "data": None, "message": "参数 user_qq_id 缺失"}
-            logger.debug(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的身份数据。")
-            await cursor.execute(
-                "SELECT * FROM VerifyUserData WHERE UserQQID = %s",
-                (user_qq_id,)
-            )
+            friend_code = kwargs.get('friend_code')
+            
+            if not user_qq_id and not friend_code:
+                logger.error("[LinkAmongUs] 插件尝试查询用户身份数据，但未提供 user_qq_id 或 friend_code 参数。")
+                return {"success": False, "data": None, "message": "参数 user_qq_id 或 friend_code 缺失"}
+            
+            # 根据提供的参数构建查询条件
+            if user_qq_id:
+                logger.debug(f"[LinkAmongUs] 正在查询用户 {user_qq_id} 的身份数据。")
+                await cursor.execute(
+                    "SELECT * FROM VerifyUserData WHERE UserQQID = %s",
+                    (user_qq_id,)
+                )
+            else:
+                logger.debug(f"[LinkAmongUs] 正在查询好友代码 {friend_code} 的身份数据。")
+                await cursor.execute(
+                    "SELECT * FROM VerifyUserData WHERE UserFriendCode = %s",
+                    (friend_code,)
+                )
             result = await cursor.fetchone()
             if result:
                 columns = [desc[0] for desc in cursor.description]
