@@ -162,8 +162,6 @@ class LinkAmongUs(Star):
             await self.session.close()
         logger.debug("[LinkAmongUs] 插件已停止。")
 
-
-
     @filter.command_group("verify")
     def verify(self):
         pass
