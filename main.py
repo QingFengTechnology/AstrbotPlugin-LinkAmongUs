@@ -697,17 +697,24 @@ class LinkAmongUs(Star):
                 # 查找需要踢出的成员
                 current_time = datetime.now()
                 get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
-                    Status="Banned", 
-                    KickTime=f"<={current_time}",
-                    sql_id=None, VerifyUserID=None, BanGroupID=None
+                    Status="Banned"
                 )
                 if not get_result["success"]:
                     pass
                 elif not get_result["data"]:
                     logger.debug("[LinkAmongUs] 未需要踢出的未验证成员，超时检查结束。")
                 else:
-                    users_to_kick = get_result["data"] if isinstance(get_result["data"], list) else [get_result["data"]]
-                    logger.debug(f"[LinkAmongUs] 已找到 {len(users_to_kick)} 个需要踢出的未验证成员。")
+                    # 查询需要踢出的成员
+                    all_banned_users = get_result["data"]
+                    if isinstance(all_banned_users, list):
+                        users_to_kick = [user for user in all_banned_users if user.get("KickTime") and user["KickTime"] <= current_time]
+                    else:
+                        user = all_banned_users
+                        users_to_kick = [user] if user.get("KickTime") and user["KickTime"] <= current_time else []
+                    if not users_to_kick:
+                        logger.debug("[LinkAmongUs] 没有需要踢出的已超时未验证成员。")
+                    else:
+                        logger.debug(f"[LinkAmongUs] 已找到 {len(users_to_kick)} 个需要踢出的未验证成员。")
 
                     # 踢出成员
                     for user in users_to_kick:
