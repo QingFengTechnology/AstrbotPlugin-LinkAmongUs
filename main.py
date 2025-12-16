@@ -98,15 +98,21 @@ class LinkAmongUs(Star):
         # 创建数据库连接池
         logger.debug(f"[LinkAmongUs] 正在尝试连接到 MySQL 服务器。")
         try: 
-            self.db_pool = await aiomysql.create_pool(
-                host=self.MySQLConfig_Address,
-                port=self.MySQLConfig_Port,
-                user=self.MySQLConfig_UserName,
-                password=self.MySQLConfig_UserPassword,
-                db=self.MySQLConfig_Database,
-                charset='utf8mb4',
-                autocommit=True
+            self.db_pool = await asyncio.wait_for(
+                aiomysql.create_pool(
+                    host=self.MySQLConfig_Address,
+                    port=self.MySQLConfig_Port,
+                    user=self.MySQLConfig_UserName,
+                    password=self.MySQLConfig_UserPassword,
+                    db=self.MySQLConfig_Database,
+                    charset='utf8mb4',
+                    autocommit=True
+                ),
+                timeout=12.0
             )
+        except asyncio.TimeoutError:
+            logger.fatal("[LinkAmongUs] 连接至 MySQL 服务器失败，连接超时。")
+            raise asyncio.TimeoutError("连接至 MySQL 服务器时超时")
         except Exception as e:
             logger.fatal(f"[LinkAmongUs] 连接至 MySQL 服务器时发生意外错误: {e}")
             raise ConnectionError("连接至 MySQL 服务器时发生意外错误")
