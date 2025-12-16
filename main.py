@@ -19,7 +19,7 @@ class LinkAmongUs(Star):
         super().__init__(context)
         self.db_pool = None
         self.session = None
-        self.running = True  # 添加标志位控制定时任务循环
+        self.running = True
         # 加载配置
         self.config = config
 
@@ -368,7 +368,7 @@ class LinkAmongUs(Star):
                 logger.info(f"[LinkAmongUs] 未找到用户 {user_qq_id} 进行中的入群验证，跳过自动完成入群验证。")
                 return
 
-            # 确保banned_logs是列表格式
+            # 解除成员禁言
             banned_logs = get_result["data"] if isinstance(get_result["data"], list) else [get_result["data"]]
             unbanned_groups = []
             
@@ -381,8 +381,6 @@ class LinkAmongUs(Star):
                         continue
                         
                     unbanned_groups.append(group_id)
-                    
-                    # 更新验证日志状态为已解除禁言
                     update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
                         sql_id=log_id, status="Unbanned")
                     if not update_result["success"]:
@@ -411,12 +409,9 @@ class LinkAmongUs(Star):
             
         # 查询用户绑定信息
         logger.info(f"[LinkAmongUs] 正在查询用户 {query_value} 的绑定信息。")
-        # 先尝试按QQ号查询
         get_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=query_value)
         if not get_result["success"] or not get_result["data"]:
-            # 如果按QQ号没找到，再尝试按好友代码查询
             get_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_friend_code=query_value)
-        
         if get_result["success"] and get_result["data"]:
             user_data = get_result["data"]
             logger.info(f"[LinkAmongUs] 成功查询到用户 {query_value} 的绑定信息。")
@@ -447,6 +442,7 @@ class LinkAmongUs(Star):
             logger.debug(f"[LinkAmongUs] 用户 {user_qq_id} 没有活跃的验证请求，拒绝取消验证请求。")
             return event.plain_result("你没有进行中的验证请求需要取消。")
 
+        # 取消验证请求
         logger.info(f"[LinkAmongUs] 用户 {user_qq_id} 请求取消验证请求。")
         api_key = self.APIConfig_Key
         verify_code = verify_log["VerifyCode"]
@@ -515,12 +511,11 @@ class LinkAmongUs(Star):
         if not await self.whitelist_check(event):
             return
             
-        # 获取群号和用户QQ号
         group_id = str(raw_message.get("group_id"))
         user_qq_id = str(raw_message.get("user_id"))
         
         logger.debug(f"[LinkAmongUs] 新成员 {user_qq_id} 加入了群 {group_id}。")
-
+        # 检查是否已关联
         user_check_result = await database_manage(self.db_pool, "VerifyUserData", "get", user_qq_id=user_qq_id)
         user_data = user_check_result["data"] if user_check_result["success"] and user_check_result["data"] else None
         if user_data:
@@ -562,7 +557,6 @@ class LinkAmongUs(Star):
             except Exception as e:
                 logger.error(f"[LinkAmongUs] 禁言用户 {user_qq_id} 时发生错误: {e}")
                 return
-            # 更新验证日志状态
             update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
                 sql_id=log_id, 
                 Status="Banned"
@@ -595,10 +589,10 @@ class LinkAmongUs(Star):
         if not await self.whitelist_check(event):
             return
 
-        # 获取群号和用户QQ号
         group_id = str(raw_message.get("group_id"))
         user_qq_id = str(raw_message.get("user_id"))
 
+        # 处理退群
         logger.debug(f"[LinkAmongUs] 成员 {user_qq_id} 退出了群 {group_id}。")
         try:
             logger.info(f"[LinkAmongUs] 准备取消用户 {user_qq_id} 在群 {group_id} 的入群验证。")
@@ -671,35 +665,31 @@ class LinkAmongUs(Star):
         """定时任务：检查并踢出未验证的用户"""
         logger.info("[LinkAmongUs] 已启动未验证成员超时检查。")
 
-        while self.running:  # 使用self.running标志位控制循环
+        while self.running:
             try:
                 logger.debug("[LinkAmongUs] 正在准备未验证成员超时检查。")
                 # 查找需要踢出的成员
                 current_time = datetime.now()
                 get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
                     Status="Banned", 
-                    KickTime=f"<={current_time}",  # 使用字符串表示条件
-                    sql_id=None, VerifyUserID=None, BanGroupID=None  # 添加必需的字段
+                    KickTime=f"<={current_time}",
+                    sql_id=None, VerifyUserID=None, BanGroupID=None
                 )
-                
-                # 检查结果并处理
                 if not get_result["success"]:
                     logger.error(f"[LinkAmongUs] 查询需要踢出的成员失败: {get_result['message']}")
                 elif not get_result["data"]:
                     logger.debug("[LinkAmongUs] 没有需要踢出的未验证成员。")
                 else:
-                    # 确保 users_to_kick 是列表格式
                     users_to_kick = get_result["data"] if isinstance(get_result["data"], list) else [get_result["data"]]
                     logger.debug(f"[LinkAmongUs] 已找到 {len(users_to_kick)} 个需要踢出的未验证成员。")
 
-                    # 踢出用户
+                    # 踢出成员
                     for user in users_to_kick:
                         log_id = user["SQLID"]
                         user_qq_id = user["VerifyUserID"]
                         group_id = user["BanGroupID"]
                         
                         try:
-                            # 尝试踢出用户
                             logger.info(f"[LinkAmongUs] 准备踢出用户 {user_qq_id} 从群 {group_id}。")
                             from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
                             assert isinstance(event, AiocqhttpMessageEvent)
@@ -708,8 +698,6 @@ class LinkAmongUs(Star):
                                 user_id=int(user_qq_id),
                                 reject_add_request=False
                             )
-                            
-                            # 更新入群验证日志
                             update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
                                 sql_id=log_id, 
                                 Status="Kicked"
