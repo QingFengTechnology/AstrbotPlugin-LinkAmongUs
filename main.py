@@ -688,7 +688,7 @@ class LinkAmongUs(Star):
                 if not get_result["success"]:
                     pass
                 elif not get_result["data"]:
-                    logger.debug("[LinkAmongUs] 未需要踢出的未验证成员，超时检查结束。")
+                    logger.debug("[LinkAmongUs] 未找到验证超时的未验证成员，超时检查结束。")
                 else:
                     # 查询需要踢出的成员
                     all_banned_users = get_result["data"]
