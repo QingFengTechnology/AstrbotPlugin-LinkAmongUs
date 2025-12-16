@@ -103,7 +103,10 @@ async def _handle_verify_user_data(cursor, method: str, latest: bool, **kwargs) 
             if result:
                 columns = [desc[0] for desc in cursor.description]
                 result_dict = dict(zip(columns, result))
-                logger.debug(f"[LinkAmongUs] 成功查询用户 {user_qq_id} 的身份数据。")
+                if user_qq_id:
+                    logger.debug(f"[LinkAmongUs] 成功查询用户 {user_qq_id} 的身份数据。")
+                else:
+                    logger.debug(f"[LinkAmongUs] 成功查询好友代码 {friend_code} 关联的身份数据。")
                 return {"success": True, "data": result_dict, "message": None}
             if user_qq_id:
                 logger.debug(f"[LinkAmongUs] 未查询到用户 {user_qq_id} 的身份数据。")
