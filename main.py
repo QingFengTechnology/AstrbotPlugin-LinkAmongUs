@@ -172,14 +172,16 @@ class LinkAmongUs(Star):
     @verify.command("help")
     async def verify_help(self, event: AstrMessageEvent):
         """发送帮助菜单"""
-        if not await whitelist_checker(event, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
+        group_id = event.get_group_id()
+        if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             yield event.plain_result(self.help_menu)
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("create")
     async def verify_create(self, event: AstrMessageEvent, friend_code: str):
         """创建一个验证请求"""
-        if not await whitelist_checker(event, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
+        group_id = event.get_group_id()
+        if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             return
 
         user_qq_id = event.get_sender_id()
@@ -245,15 +247,15 @@ class LinkAmongUs(Star):
 
         # 启动超时检查任务
         umo = event.unified_msg_origin
-        user_group_id = event.get_group_id()
-        target_is_group = user_group_id is not None
+        target_is_group = group_id is not None
         asyncio.create_task(verification_timeout_checker(self.db_pool, self.context, user_qq_id, target_is_group, process_duration, umo, self.CreateVerifyConfig_TimeoutReminder))
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("finish")
     async def verify_finish(self, event: AstrMessageEvent):
         """完成一个验证请求"""
-        if not await whitelist_checker(event, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
+        group_id = event.get_group_id()
+        if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             return
             
         user_qq_id = event.get_sender_id()
@@ -411,7 +413,8 @@ class LinkAmongUs(Star):
     @verify.command("cancel")
     async def verify_cancel(self, event: AstrMessageEvent):
         """取消用户当前的验证请求"""
-        if not await whitelist_checker(event, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
+        group_id = event.get_group_id()
+        if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             return
 
         user_qq_id = event.get_sender_id()
@@ -443,7 +446,8 @@ class LinkAmongUs(Star):
     @verify.command("info")
     async def verify_info(self, event: AstrMessageEvent):
         """查询当前用户的账号关联信息"""
-        if not await whitelist_checker(event, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
+        group_id = event.get_group_id()
+        if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             return
             
         user_qq_id = event.get_sender_id()
@@ -470,7 +474,8 @@ class LinkAmongUs(Star):
     @verify.command("query")
     async def verify_query(self, event: AstrMessageEvent, query_value: str):
         """查询指定用户的账号关联信息"""
-        if not await whitelist_checker(event, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
+        group_id = event.get_group_id()
+        if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             return
 
         if not friend_code_cheker(query_value, self.VerifyConfig_BlackFriendCode) and not qq_id_checker(query_value):
@@ -530,10 +535,10 @@ class LinkAmongUs(Star):
             return
         if raw_message.get("notice_type") != "group_increase":
             return
-        if not await whitelist_checker(event, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
+        group_id = str(raw_message.get("group_id"))
+        if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             return
             
-        group_id = str(raw_message.get("group_id"))
         user_qq_id = str(raw_message.get("user_id"))
         
         logger.debug(f"[LinkAmongUs] 新成员 {user_qq_id} 加入了群 {group_id}。")
@@ -602,10 +607,10 @@ class LinkAmongUs(Star):
             return
         if raw_message.get("notice_type") != "group_decrease":
             return
-        if not await whitelist_checker(event, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
+        group_id = str(raw_message.get("group_id"))
+        if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             return
 
-        group_id = str(raw_message.get("group_id"))
         user_qq_id = str(raw_message.get("user_id"))
 
         # 处理退群
@@ -654,11 +659,11 @@ class LinkAmongUs(Star):
             return
         if raw_message.get("sub_type") != "lift_ban":
             return
-        if not await whitelist_checker(event, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
+        group_id = event.get_group_id()
+        if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
             return
 
         banned_user_id = event.get_sender_id()
-        group_id = event.get_group_id()
         
         logger.debug(f"[LinkAmongUs] 正在验证成员 {banned_user_id} 在群 {group_id} 的入群验证状态。")
         get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 

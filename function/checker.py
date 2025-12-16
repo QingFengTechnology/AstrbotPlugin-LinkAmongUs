@@ -1,5 +1,6 @@
 import re
 from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent
 
 def friend_code_cheker(friend_code: str, black_list: list) -> bool:
     """校验好友代码
@@ -55,18 +56,17 @@ def qq_id_checker(qq_id: int) -> bool:
 
     return True
 
-async def whitelist_checker(event, private_message: bool, whitelist_groups: list) -> bool:
+def whitelist_checker(group_id: str | int, private_message: bool, whitelist_groups: list) -> bool:
     """白名单检查
     
     Args:
-      event: 消息事件对象
-      private_message: 是否允许在私聊中使用
-      whitelist_groups: 允许的白名单群组列表
+      group_id: 目标群聊 ID。
+      private_message: 是否允许在私聊中使用。
+      whitelist_groups: 白名单群组列表。
 
     Returns:
       如果通过白名单检查，返回 True；否则返回 False。
     """
-    group_id = event.get_group_id()
     if group_id == "" and not private_message:
         logger.debug("[LinkAmongUs] 不允许在私聊中使用该命令，取消该任务。")
         return False
