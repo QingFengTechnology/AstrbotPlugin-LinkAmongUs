@@ -551,17 +551,13 @@ class LinkAmongUs(Star):
         # 入群验证
         logger.info(f"[LinkAmongUs] 准备为成员 {user_qq_id} 创建入群验证。")
         try:
-            # 计算踢出时间
-            kick_duration = self.KickNewMemberConfig_KickNewMemberIfNotVerify
-            from datetime import timedelta
-            kick_time = datetime.now() + timedelta(days=kick_duration)
-            
             # 写入验证日志
-            insert_result = await database_manage(self.db_pool, "VerifyGroupLog", "insert", user_qq_id=user_qq_id, group_id=group_id, status="Created")
+            from datetime import timedelta
+            kick_time = datetime.now() + timedelta(days=self.KickNewMemberConfig_KickNewMemberIfNotVerify)
+            insert_result = await database_manage(self.db_pool, "VerifyGroupLog", "insert", user_qq_id=user_qq_id, group_id=group_id, kick_time=kick_time, status="Created")
             if not insert_result["success"]:
-                logger.error(f"[LinkAmongUs] 写入验证日志失败: {insert_result['message']}")
                 return
-            log_id = insert_result["data"]  # 返回的是新插入记录的ID
+            log_id = insert_result["data"]
 
             # 禁言用户
             ban_seconds = self.GroupVerifyConfig_BanNewMemberDuration * 24 * 60 * 60  # 转换为秒
