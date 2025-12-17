@@ -577,10 +577,7 @@ class LinkAmongUs(Star):
             except Exception as e:
                 logger.error(f"[LinkAmongUs] 禁言用户 {user_qq_id} 时发生错误: {e}")
                 return
-            update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
-                sql_id=log_id, 
-                Status="Banned"
-            )
+            update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", sql_id=log_id, status="Banned")
             if not update_result["success"]:
                 logger.error(f"[LinkAmongUs] 更新验证日志状态失败: {update_result['message']}")
             return event.chain_result(new_user_join(user_qq_id))
@@ -627,7 +624,7 @@ class LinkAmongUs(Star):
             # 取消入群验证
             log_data = log_result["data"]
             log_id = log_data["SQLID"]
-            update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", sql_id=log_id, Status="Cancelled")
+            update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", sql_id=log_id, status="Cancelled")
             if update_result["success"]:
                 logger.info(f"[LinkAmongUs] 已取消成员 {user_qq_id} 在群 {group_id} 的入群验证。")
                         
@@ -705,10 +702,7 @@ class LinkAmongUs(Star):
                         
                         try:
                             await set_group_kick(event, group_id, user_qq_id, False)
-                            update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
-                                sql_id=log_id, 
-                                Status="Kicked"
-                            )
+                            update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", sql_id=log_id, status="Kicked")
                             if update_result["success"]:
                                 logger.info(f"[LinkAmongUs] 已在群 {group_id} 踢出用户 {user_qq_id}。")
                             else:
