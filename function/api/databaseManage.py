@@ -22,7 +22,7 @@ async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, lates
             对于 VerifyGroupLog 表：
                 - get: `user_qq_id` | `status` (str), `group_id` (str, 可选), `status` (str, 可选)
                 - update: `sql_id` (int), `status` (str) 
-                - insert: `user_qq_id` (str), `group_id` (str), `status` (str, 默认 Created)
+                - insert: `user_qq_id` (str), `group_id` (str), `kick_time` (str), `status` (str, 默认 Created)
             对于任意表：
                 - check: `structure` (str)
     
@@ -312,16 +312,17 @@ async def _handle_verify_group_log(cursor, method: str, latest: bool, **kwargs) 
         elif method == "insert":
             user_qq_id = kwargs.get('user_qq_id')
             group_id = kwargs.get('group_id')
+            kick_time = kwargs.get('kick_time')
             status = kwargs.get('status', 'Created')
             
-            if not user_qq_id or not group_id:
-                logger.error("[LinkAmongUs] 插件尝试写入入群验证日志，但未提供 user_qq_id 或 group_id 参数。")
-                return {"success": False, "data": None, "message": "参数 user_qq_id 或 group_id 缺失"}
+            if not user_qq_id or not group_id or not kick_time:
+                logger.error("[LinkAmongUs] 插件尝试写入入群验证日志，但未提供 user_qq_id、group_id 或 kick_time 参数。")
+                return {"success": False, "data": None, "message": "参数 user_qq_id、group_id 或 kick_time 缺失"}
             
             logger.debug(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的入群验证日志。")
             await cursor.execute(
-                "INSERT INTO VerifyGroupLog (Status, VerifyUserID, BanGroupID, KickTime) VALUES (%s, %s, %s, NOW())",
-                (status, user_qq_id, group_id)
+                "INSERT INTO VerifyGroupLog (Status, VerifyUserID, BanGroupID, KickTime) VALUES (%s, %s, %s, %s)",
+                (status, user_qq_id, group_id, kick_time)
             )
             logger.debug(f"[LinkAmongUs] 成功写入用户 {user_qq_id} 的入群验证日志。")
             return {"success": True, "data": None, "message": None}
