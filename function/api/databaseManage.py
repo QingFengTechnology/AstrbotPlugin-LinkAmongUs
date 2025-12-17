@@ -248,7 +248,7 @@ async def _handle_verify_group_log(cursor, method: str, latest: bool, **kwargs) 
             # 如果没有提供任何查询条件，则返回错误
             if not where_conditions:
                 logger.error("[LinkAmongUs] 插件尝试查询入群验证日志，但未提供 user_qq_id 或 status 参数。")
-                return {"success": False, "data": None, "message": "至少需要提供 user_qq_id 或 status 参数中的一个"}
+                return {"success": False, "data": None, "message": "参数 user_qq_id 或 status 缺失"}
             
             where_clause = " AND ".join(where_conditions)
             query_desc = f"用户 {user_qq_id}" if user_qq_id else f"状态为 {status}"
@@ -302,9 +302,10 @@ async def _handle_verify_group_log(cursor, method: str, latest: bool, **kwargs) 
             status = kwargs.get('status', 'Created')
             
             if not user_qq_id or not group_id:
+                logger.error("[LinkAmongUs] 插件尝试写入入群验证日志，但未提供 user_qq_id 或 group_id 参数。")
                 return {"success": False, "data": None, "message": "参数 user_qq_id 或 group_id 缺失"}
             
-            logger.debug(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的群组验证日志。")
+            logger.debug(f"[LinkAmongUs] 正在写入用户 {user_qq_id} 的入群验证日志。")
             await cursor.execute(
                 "INSERT INTO VerifyGroupLog (Status, VerifyUserID, BanGroupID, KickTime) VALUES (%s, %s, %s, NOW())",
                 (status, user_qq_id, group_id)
