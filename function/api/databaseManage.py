@@ -20,7 +20,7 @@ async def database_manage(db_pool: aiomysql.Pool, table: str, method: str, lates
                 - update: `sql_id` (int), `status` (str)
                 - insert: `user_qq_id` (str), `friend_code` (str), `verify_code` (str), `status` (str, 默认 Created)
             对于 VerifyGroupLog 表：
-                - get: `user_qq_id` | `status` (str), `status` (str, 可选)
+                - get: `user_qq_id` | `status` (str), `group_id` (str, 可选), `status` (str, 可选)
                 - update: `sql_id` (int), `status` (str) 
                 - insert: `user_qq_id` (str), `group_id` (str), `status` (str, 默认 Created)
             对于任意表：
@@ -232,6 +232,7 @@ async def _handle_verify_group_log(cursor, method: str, latest: bool, **kwargs) 
         if method == "get":
             user_qq_id = kwargs.get('user_qq_id')
             status = kwargs.get('status')
+            group_id = kwargs.get('group_id')
             
             # 构建查询条件
             where_conditions = []
@@ -245,13 +246,25 @@ async def _handle_verify_group_log(cursor, method: str, latest: bool, **kwargs) 
                 where_conditions.append("Status = %s")
                 params.append(status)
             
+            if group_id:
+                where_conditions.append("BanGroupID = %s")
+                params.append(group_id)
+            
             # 如果没有提供任何查询条件，则返回错误
-            if not where_conditions:
+            if not user_qq_id and not status:
                 logger.error("[LinkAmongUs] 插件尝试查询入群验证日志，但未提供 user_qq_id 或 status 参数。")
                 return {"success": False, "data": None, "message": "参数 user_qq_id 或 status 缺失"}
             
             where_clause = " AND ".join(where_conditions)
-            query_desc = f"用户 {user_qq_id}" if user_qq_id else f"状态为 {status}"
+            # 构建查询描述
+            desc_parts = []
+            if user_qq_id:
+                desc_parts.append(f"用户 {user_qq_id}")
+            if status:
+                desc_parts.append(f"状态为 {status}")
+            if group_id:
+                desc_parts.append(f"群聊 {group_id}")
+            query_desc = "、".join(desc_parts)
             logger.debug(f"[LinkAmongUs] 正在查询{query_desc} 的入群验证日志。")
             
             if latest:
