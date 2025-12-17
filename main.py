@@ -616,30 +616,23 @@ class LinkAmongUs(Star):
         # 处理退群
         logger.debug(f"[LinkAmongUs] 成员 {user_qq_id} 退出了群 {group_id}。")
         try:
-            logger.info(f"[LinkAmongUs] 准备取消用户 {user_qq_id} 在群 {group_id} 的入群验证。")
             # 查找验证日志
-            log_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", 
-                VerifyUserID=user_qq_id, BanGroupID=group_id)
-            if not log_result["success"] or not log_result["data"]:
-                logger.debug(f"[LinkAmongUs] 未找到用户 {user_qq_id} 在群 {group_id} 的验证日志，跳过取消入群验证。")
+            log_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", True, user_qq_id=user_qq_id, group_id=group_id, status="Banned")
+            if not log_result["success"]:
                 return
-                
+            elif not log_result["data"]:
+                logger.debug(f"[LinkAmongUs] 未找到成员 {user_qq_id} 在群 {group_id} 的入群验证记录，跳过取消入群验证。")
+                return
+
             # 取消入群验证
             log_data = log_result["data"]
             log_id = log_data["SQLID"]
-            status = log_data["Status"]
-            if status in ["Created", "Banned"]:
-                update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
-                    sql_id=log_id, 
-                    Status="Cancelled"
-                )
-                if update_result["success"]:
-                    logger.info(f"[LinkAmongUs] 已取消成员 {user_qq_id} 在群 {group_id} 的入群验证。")
-                else:
-                    logger.error(f"[LinkAmongUs] 取消验证失败: {update_result['message']}")
+            update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", sql_id=log_id, Status="Cancelled")
+            if update_result["success"]:
+                logger.info(f"[LinkAmongUs] 已取消成员 {user_qq_id} 在群 {group_id} 的入群验证。")
                         
         except Exception as e:
-            logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 退群 {group_id} 事件时发生错误: {e}")
+            logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 离开群 {group_id} 时发生错误: {e}")
 
     async def group_ban_lift_ban(self, event: AstrMessageEvent):
         """防止入群验证成员被解除禁言"""
