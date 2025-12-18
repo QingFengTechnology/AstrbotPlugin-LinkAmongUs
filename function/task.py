@@ -1,11 +1,14 @@
 import asyncio
 import aiomysql
 import astrbot.api.message_components as Comp
+from datetime import datetime
 
 from astrbot.api import logger
 from astrbot.api.star import Context
 from astrbot.core.message.message_event_result import MessageChain
+
 from .api.databaseManage import database_manage
+from .api.callQApi import set_group_kick
 
 async def verification_timeout_checker(db_pool: aiomysql.Pool, context: Context, user_qq_id: str, target_is_group: bool, timeout: int, umo: str, reminder_time: int):
     """超时检查任务
@@ -83,3 +86,54 @@ async def verification_timeout_checker(db_pool: aiomysql.Pool, context: Context,
             logger.warning(f"[LinkAmongUs] 用户 {user_qq_id} 的验证请求因内部错误被取消。")
         except Exception as e:
             logger.error(f"[LinkAmongUs] 取消用户 {user_qq_id} 的验证请求时发生意外错误：{e}")
+
+async def group_verification_timeout_checker(running: bool, db_pool: aiomysql.Pool, polling_interval: int):
+    """定时任务：检查并踢出未验证的用户"""
+    logger.info("[LinkAmongUs] 已启动未验证成员超时检查。")
+
+    while running:
+        try:
+            logger.debug("[LinkAmongUs] 正在准备未验证成员超时检查。")
+            # 查找需要踢出的成员
+            current_time = datetime.now()
+            get_result = await database_manage(db_pool, "VerifyGroupLog", "get", status="Banned")
+            if not get_result["success"]:
+                pass
+            elif not get_result["data"]:
+                logger.debug("[LinkAmongUs] 未找到验证超时的未验证成员，超时检查结束。")
+            else:
+                # 查询需要踢出的成员
+                all_banned_users = get_result["data"]
+                if isinstance(all_banned_users, list):
+                    users_to_kick = [user for user in all_banned_users if user.get("KickTime") and user["KickTime"] <= current_time]
+                else:
+                    user = all_banned_users
+                    users_to_kick = [user] if user.get("KickTime") and user["KickTime"] <= current_time else []
+                if not users_to_kick:
+                    logger.debug("[LinkAmongUs] 没有需要踢出的已超时未验证成员。")
+                else:
+                    logger.debug(f"[LinkAmongUs] 已找到 {len(users_to_kick)} 个需要踢出的未验证成员。")
+
+                # 踢出成员
+                for user in users_to_kick:
+                    log_id = user["SQLID"]
+                    user_qq_id = user["VerifyUserID"]
+                    group_id = user["BanGroupID"]
+                    
+                    try:
+                        await set_group_kick(None, group_id, user_qq_id, False)
+                        update_result = await database_manage(db_pool, "VerifyGroupLog", "update", sql_id=log_id, status="Kicked")
+                        if update_result["success"]:
+                            logger.info(f"[LinkAmongUs] 已在群 {group_id} 踢出用户 {user_qq_id}。")
+                        else:
+                            logger.error(f"[LinkAmongUs] 更新验证日志失败: {update_result['message']}")
+                        
+                    except Exception as e:
+                        logger.error(f"[LinkAmongUs] 在群 {group_id} 踢出用户 {user_qq_id} 时发生意外错误: {e}")
+                                    
+                    logger.debug("[LinkAmongUs] 已完成未验证成员超时检查。")
+        except Exception as e:
+            logger.error(f"[LinkAmongUs] 定时任务执行时发生错误: {e}")
+
+        # 等待
+        await asyncio.sleep(polling_interval * 3600)
