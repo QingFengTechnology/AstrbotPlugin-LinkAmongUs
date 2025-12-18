@@ -109,7 +109,7 @@ class LinkAmongUs(Star):
                     charset='utf8mb4',
                     autocommit=True
                 ),
-                timeout=12.0
+                timeout=10.0
             )
         except asyncio.TimeoutError:
             logger.fatal("[LinkAmongUs] 连接至 MySQL 服务器失败，连接超时。")
