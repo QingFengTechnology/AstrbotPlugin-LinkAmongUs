@@ -1,7 +1,12 @@
+from typing import TYPE_CHECKING
+
 import astrbot.api.message_components as Comp
 from astrbot.api.star import Context
 
-def help_menu(self, context: Context) -> str:
+if TYPE_CHECKING:
+    from ..main import LinkAmongUs
+
+def help_menu(self: 'LinkAmongUs', context: Context) -> str:
     """获取帮助菜单的消息模板
 
     Args:
