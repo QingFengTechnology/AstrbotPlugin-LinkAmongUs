@@ -1,6 +1,7 @@
 import asyncio
 import aiohttp
 import aiomysql
+import astrbot.api.message_components as Comp
 
 from datetime import datetime
 from astrbot.api.event import filter, AstrMessageEvent
@@ -8,7 +9,7 @@ from astrbot.api.star import Context, Star
 from astrbot.api import logger, AstrBotConfig
 
 from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
-from .variable.messageTemplate import help_menu, new_user_join
+from .variable.messageTemplate import help_menu
 from .function.api.databaseManage import database_manage
 from .function.api.verifyRequest import request_verify_api
 from .function.api.callQApi import set_group_ban, get_stranger_info
@@ -571,7 +572,13 @@ class LinkAmongUs(Star):
             update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", sql_id=log_id, status="Banned")
             if not update_result["success"]:
                 logger.error(f"[LinkAmongUs] 更新验证日志状态失败: {update_result['message']}")
-            return event.chain_result(new_user_join(user_qq_id))
+            chain = [
+                Comp.At(qq=user_qq_id),
+                Comp.Plain("\u200b\n本群已启用清风服关联账号验证服务，您需要与机器人私聊完成关联验证。\n\u200b"),
+                Comp.Plain("与机器人私聊发送 /verify help 命令以获取帮助。\n\u200b"),
+                Comp.Plain("在完成验证之前，您将不得发言，若长时间未完成验证，您将被移出本群。")
+            ]
+            yield event.chain_result(chain)
 
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 入群验证时发生错误: {e}")
