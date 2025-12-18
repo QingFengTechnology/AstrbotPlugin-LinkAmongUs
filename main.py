@@ -65,12 +65,7 @@ class LinkAmongUs(Star):
         self.FinishVerifyConfig_AutoCheck: bool = self.VerifyConfig_FinishVerifyConfig.get("FinishVerifyConfig_AutoCheck")
 
         # 生成帮助菜单
-        star_metadata = context.get_registered_star("astrbot_plugin_link_amongus")
-        self.help_menu = help_menu(
-            plugin_name=star_metadata.name,
-            version=star_metadata.version,
-            author=star_metadata.author
-        )
+        self.help_menu = help_menu(self, context)
 
         logger.debug("[LinkAmongUs] 插件已启动。")
         

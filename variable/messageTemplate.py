@@ -1,8 +1,15 @@
 import astrbot.api.message_components as Comp
+from astrbot.api.star import Context
 
-def help_menu(plugin_name: str, version: str, author: str) -> str:
-    """获取帮助菜单的消息模板"""
-    return f"""{plugin_name} {version} By {author}
+def help_menu(self, context: Context) -> str:
+    """获取帮助菜单的消息模板
+
+    Args:
+      self: 插件实例。
+      context: 插件接口上下文。
+    """
+    metadata = context.get_registered_star(self.name)
+    return f"""{metadata.name} {metadata.version} By {metadata.author}
 
 帮助菜单：
 
