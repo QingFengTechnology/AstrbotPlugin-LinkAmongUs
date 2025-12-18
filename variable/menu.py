@@ -1,22 +1,15 @@
-from typing import TYPE_CHECKING
-
 import astrbot.api.message_components as Comp
-from astrbot.api.star import Context
+from astrbot.core.star import StarMetadata
 
-if TYPE_CHECKING:
-    from ..main import LinkAmongUs
-
-def help_menu(self: 'LinkAmongUs', context: Context) -> list[Comp.BaseMessageComponent]:
+def help_menu(metadata: StarMetadata) -> list[Comp.BaseMessageComponent]:
     """获取帮助菜单的消息模板
 
     Args:
-      self: 插件实例。
-      context: 插件接口上下文。
+      metadata: 插件元数据信息。
     
     Returns:
       包含帮助菜单的消息链。
     """
-    metadata = context.get_registered_star(self.name)
     chain = [
         Comp.Plain(f"{metadata.name} {metadata.version} By {metadata.author}\n"),
         Comp.Plain("帮助菜单\n\n\u200b"),
