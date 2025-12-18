@@ -557,18 +557,18 @@ class LinkAmongUs(Star):
             insert_result = await database_manage(self.db_pool, "VerifyGroupLog", "insert", user_qq_id=user_qq_id, group_id=group_id, kick_time=kick_time, status="Created")
             if not insert_result["success"]:
                 return
-            log_id = insert_result["data"]
-
+            
             # 禁言用户
+            get_result = await database_manage(self.db_pool, "VerifyGroupLog", "get", user_qq_id=user_qq_id, group_id=group_id, status="Created", latest=True)
+            if not get_result["success"] or not get_result["data"]:
+                logger.error(f"[LinkAmongUs] 查询入群验证日志失败: {get_result['message']}。")
+                return
+            log_id = get_result["data"]["SQLID"]
             ban_seconds = self.GroupVerifyConfig_BanNewMemberDuration * 24 * 60 * 60  # 转换为秒
             try:
                 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
                 assert isinstance(event, AiocqhttpMessageEvent)
-                await event.bot.set_group_ban(
-                    group_id=int(group_id),
-                    user_id=int(user_qq_id),
-                    duration=ban_seconds
-                )
+                await event.bot.set_group_ban(group_id=int(group_id), user_id=int(user_qq_id), duration=ban_seconds)
                 logger.debug(f"[LinkAmongUs] 已禁言成员 {user_qq_id}。")
             except Exception as e:
                 logger.error(f"[LinkAmongUs] 禁言用户 {user_qq_id} 时发生错误: {e}")
