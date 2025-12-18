@@ -9,7 +9,7 @@ from astrbot.api.star import Context, Star
 from astrbot.api import logger, AstrBotConfig
 
 from .variable.sqlTable import VERIFY_LOG, VERIFY_USER_DATA, VERIFY_GROUP_LOG, REQUEID_TABLES
-from .variable.messageTemplate import help_menu
+from .variable.menu import help_menu
 from .function.api.databaseManage import database_manage
 from .function.api.verifyRequest import request_verify_api
 from .function.api.callQApi import set_group_ban, get_stranger_info
@@ -168,7 +168,7 @@ class LinkAmongUs(Star):
         """发送帮助菜单"""
         group_id = event.get_group_id()
         if whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
-            yield event.plain_result(self.help_menu)
+            yield event.chain_result(self.help_menu)
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @verify.command("create")
