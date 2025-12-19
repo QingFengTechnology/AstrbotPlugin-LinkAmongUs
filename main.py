@@ -77,18 +77,24 @@ class LinkAmongUs(Star):
         if self.CreateVerifyConfig_TimeoutReminder < 1 or self.CreateVerifyConfig_TimeoutReminder > self.CreateVerifyConfig_ProcessDuration:
           logger.fatal(f"[LinkAmongUs] 配置值非法：配置 CreateVerifyConfig_TimeoutReminder 合法值应在 1-{self.CreateVerifyConfig_ProcessDuration} 之间。")
           raise ValueError("配置 CreateVerifyConfig_TimeoutReminder 值非法")
+
         if self.CreateVerifyConfig_ProcessDuration < 1 or self.CreateVerifyConfig_ProcessDuration > 600:
           logger.fatal("[LinkAmongUs] 配置值非法：配置 CreateVerifyConfig_ProcessDuration 合法值应在 1-600 之间。")
           raise ValueError("配置 CreateVerifyConfig_ProcessDuration 值非法")
+
         if self.GroupVerifyConfig_BanNewMemberDuration < 1 or self.GroupVerifyConfig_BanNewMemberDuration > 30:
           logger.fatal("[LinkAmongUs] 配置值非法：配置 GroupVerifyConfig_BanNewMemberDuration 合法值应在 1-30 之间。")
           raise ValueError("配置 GroupVerifyConfig_BanNewMemberDuration 值非法")
+        self.GroupVerifyConfig_BanNewMemberDuration *= 24 * 60 * 60 # 转为秒
+
         if self.KickNewMemberConfig_PollingInterval < 1 or self.KickNewMemberConfig_PollingInterval > 30:
           logger.fatal("[LinkAmongUs] 配置值非法：配置 KickNewMemberConfig_PollingInterval 合法值应在 1-30 之间。")
           raise ValueError("配置 KickNewMemberConfig_PollingInterval 值非法")
+
         if not self.APIConfig_EndPoint:
           logger.fatal("[LinkAmongUs] 配置值非法：配置 APIConfig_EndPoint 不能为空。")
           raise ValueError("配置 APIConfig_EndPoint 值非法")
+
         if not self.APIConfig_Key:
           logger.fatal("[LinkAmongUs] 配置值非法：配置 APIConfig_Key 不能为空。")
           raise ValueError("配置 APIConfig_Key 值非法")
@@ -561,11 +567,10 @@ class LinkAmongUs(Star):
                 logger.error(f"[LinkAmongUs] 查询入群验证日志失败: {get_result['message']}。")
                 return
             log_id = get_result["data"]["SQLID"]
-            ban_seconds = self.GroupVerifyConfig_BanNewMemberDuration * 24 * 60 * 60  # 转换为秒
             try:
                 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
                 assert isinstance(event, AiocqhttpMessageEvent)
-                await event.bot.set_group_ban(group_id=int(group_id), user_id=int(user_qq_id), duration=ban_seconds)
+                await event.bot.set_group_ban(group_id=int(group_id), user_id=int(user_qq_id), duration=self.GroupVerifyConfig_BanNewMemberDuration)
                 logger.debug(f"[LinkAmongUs] 已禁言成员 {user_qq_id}。")
             except Exception as e:
                 logger.error(f"[LinkAmongUs] 禁言用户 {user_qq_id} 时发生错误: {e}")
@@ -628,7 +633,9 @@ class LinkAmongUs(Star):
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 离开群 {group_id} 时发生错误: {e}")
 
-    async def group_ban_lift_ban(self, event: AstrMessageEvent):
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def group_ban(self, event: AstrMessageEvent):
         """防止入群验证成员被解除禁言"""
         if not self.GroupVerifyConfig_NewMemberNeedVerify:
             return
@@ -644,7 +651,7 @@ class LinkAmongUs(Star):
             return
         if raw_message.get("notice_type") != "group_ban":
             return
-        if raw_message.get("sub_type") != "lift_ban":
+        if str(raw_message.get("duration")) != "0":
             return
         group_id = event.get_group_id()
         if not whitelist_checker(group_id, self.WhitelistConfig_AllowPrivateMessage, self.WhitelistConfig_WhitelistGroups):
