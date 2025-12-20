@@ -1,6 +1,6 @@
 name: astrbot_plugin_link_amongus
 display_name: Login with Among Us
 desc: 通过 Nmpostor 提供的 Among Us 好友代码验证功能让群成员与其 Among Us 账号关联。
-version: v1.6.6
+version: v1.6.7
 author: QingFeng
 repo: https://github.com/QingFengTechnology/AstrbotPlugin-LinkAmongUs

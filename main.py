@@ -390,22 +390,19 @@ class LinkAmongUs(Star):
                 log_id = log["SQLID"]
                 group_id = log["BanGroupID"]
                 try:
-                    error_message = await set_group_ban(event, group_id, user_qq_id, 0)
-                    if error_message:
-                        yield event.plain_result(f"解除你在群 {group_id} 的禁言时发生意外错误：{error_message}\n请联系管理员。")
-                        continue
-                        
-                    unbanned_groups.append(group_id)
                     update_result = await database_manage(self.db_pool, "VerifyGroupLog", "update", 
                         sql_id=log_id, status="Unbanned")
                     if not update_result["success"]:
                         yield event.plain_result(f"更新你在群 {group_id} 的入群验证状态时发生错误：{update_result['message']}。\n请联系管理员，否则你可能仍会被机器人踢出群聊。")
-                        
+                    error_message = await set_group_ban(event, group_id, user_qq_id, 0)
+                    if error_message:
+                        yield event.plain_result(f"解除你在群 {group_id} 的禁言时发生意外错误：{error_message}\n请联系管理员。")
+                        continue
+                    unbanned_groups.append(group_id)
                 except Exception as e:
                     logger.error(f"[LinkAmongUs] 解除用户 {user_qq_id} 在群 {group_id} 的禁言时发生意外错误: {e}")
-                    
-            yield event.plain_result(f"已尝试自动解除你在这些群聊的禁言：{', '.join(unbanned_groups)}。\n如不生效请联系管理员。")
-            
+            if unbanned_groups:
+                yield event.plain_result(f"已尝试自动解除你在这些群聊的禁言：{', '.join(unbanned_groups)}。\n如不生效请联系管理员。")
         except Exception as e:
             logger.error(f"[LinkAmongUs] 处理用户 {user_qq_id} 入群验证禁言时发生意外错误: {e}")
             yield event.plain_result("尝试自动处理入群验证禁言时发生意外错误，请联系管理员。")
